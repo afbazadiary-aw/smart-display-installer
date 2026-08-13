@@ -84,6 +84,13 @@ const EXCLUDE_DIR_PREFIXES = [
   'Image',
   'live-studio',
   'cloudflare-worker',
+  // PERBAIKAN: 'docs' SEBELUMNYA tidak ada di daftar ini, padahal .claspignore milik source
+  // Smart Display sudah mengecualikannya. Akibatnya docs/voice-recorder/index.html dan video.html
+  // ikut masuk manifest sebagai berkas Apps Script bernama "index" dan "video". Keduanya halaman
+  // statis GitHub Pages yang memakai document/window di top level - kalau ikut terdorong, Apps
+  // Script mengevaluasinya sebagai kode server tanpa DOM. Lebih buruk lagi, "index" bertabrakan
+  // dengan "Index" (shell utama aplikasi). Daftar ini HARUS tetap sejalan dengan .claspignore.
+  'docs',
   '__tests__',
   'test',
   'tests',

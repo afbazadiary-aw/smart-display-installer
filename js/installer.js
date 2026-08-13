@@ -70,6 +70,7 @@ function showNoLicenseError(email) {
 // ============================================================================
 
 async function apiCall(url, options = {}, retried = false) {
+  const method = options.method || 'GET';
   const res = await fetch(url, {
     ...options,
     headers: {
@@ -78,23 +79,59 @@ async function apiCall(url, options = {}, retried = false) {
       ...(options.headers || {})
     }
   });
-  
+
   // Rate limit: retry sekali setelah delay
   if (res.status === 429 && !retried) {
     await new Promise(r => setTimeout(r, INSTALLER_CONFIG.RETRY_DELAY));
     return apiCall(url, options, true);
   }
-  
+
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    const err = new Error(body?.error?.message || `HTTP ${res.status}`);
+    // Badan respons dibaca sebagai TEKS dulu, baru dicoba diurai jadi JSON. Sebelumnya langsung
+    // res.json().catch(() => ({})) - kalau Google membalas HTML/teks biasa (mis. halaman error
+    // gateway), badan aslinya hilang total dan yang tersisa cuma "HTTP 500" tanpa petunjuk apa pun.
+    const raw = await res.text().catch(() => '');
+    let body = {};
+    try { body = raw ? JSON.parse(raw) : {}; } catch (e) { body = {}; }
+    const gErr = body && body.error;
+
+    // Diagnostik LENGKAP ke console - inilah yang hilang saat error "Request contains an invalid
+    // argument." pertama kali muncul: tanpa status/reason/URL, mustahil tahu panggilan MANA yang
+    // sebenarnya gagal. Sengaja console.error (bukan tampil ke pembeli) supaya tetap bisa
+    // didiagnosis lewat DevTools tanpa membocorkan detail teknis di layar pembeli.
+    console.error(
+      '[Installer] Panggilan API gagal\n' +
+      'Request     : ' + method + ' ' + url + '\n' +
+      'HTTP Status : ' + res.status + ' ' + res.statusText + '\n' +
+      'Reason      : ' + ((gErr && gErr.status) || '(tidak ada)') + '\n' +
+      'Message     : ' + ((gErr && gErr.message) || '(tidak ada)') + '\n' +
+      'Details     : ' + (gErr && gErr.details ? JSON.stringify(gErr.details) : '(tidak ada)') + '\n' +
+      'Raw body    : ' + (raw ? raw.slice(0, 2000) : '(kosong)')
+    );
+
+    const err = new Error((gErr && gErr.message) || `HTTP ${res.status}`);
     err.status = res.status;
+    err.reason = (gErr && gErr.status) || '';
     err.body = body;
+    err.raw = raw;
+    err.url = url;
+    err.method = method;
     throw err;
   }
-  
+
   if (res.status === 204) return {};
   return res.json();
+}
+
+// Apps Script API membalas 403 dengan pesan khas ini kalau pengguna belum mengaktifkan
+// Apps Script API di setelan akunnya. Dipakai untuk membedakan "perlu aktivasi" dari
+// kegagalan izin lain (mis. scope tidak diberikan), yang penanganannya berbeda.
+function isAppsScriptApiDisabled(err) {
+  if (!err || err.status !== 403) return false;
+  const msg = String(err.message || '').toLowerCase();
+  return msg.includes('has not enabled') ||
+         msg.includes('apps script api') ||
+         msg.includes('user has not enabled');
 }
 
 // ============================================================================
@@ -231,23 +268,51 @@ async function verifyLicense() {
 // 4. DETEKSI APPS SCRIPT API
 // ============================================================================
 
-async function ensureAppsScriptApiEnabled() {
+// AKAR MASALAH "Request contains an invalid argument." (dibuktikan dengan memanggil API langsung):
+//
+//   GET https://script.googleapis.com/v1/projects/000000000000000000000000000000000000000000
+//   -> HTTP 400 INVALID_ARGUMENT "Request contains an invalid argument."
+//
+// Versi lama fungsi ini menembak script ID palsu (42 nol) dan MENGANGGAP satu-satunya kegagalan
+// yang mungkin adalah 404. Padahal 42 nol bukan resource name yang sah, jadi Google menolaknya di
+// tahap validasi argumen (400) - JAUH sebelum sampai ke pertanyaan "project ini ada atau tidak".
+// Karena 400 !== 404, error dilempar ulang; heuristik di bawahnya juga tidak cocok (bukan 403, dan
+// pesannya tidak memuat 'permission'/'disabled'/'has not been used'), sehingga error lolos keluar
+// dan menghentikan instalasi. Instalasi TIDAK PERNAH sampai ke projects.create - dan projects.create
+// sendiri terbukti baik-baik saja (POST /v1/projects dengan body {"title":"..."} -> HTTP 200).
+//
+// Selain itu pemeriksaan lama memang TIDAK SAHIH secara konsep: berhasil GET project mana pun tidak
+// membuktikan projects.create bisa dilakukan. Satu-satunya bukti bahwa create bisa dilakukan adalah
+// MELAKUKAN create - jadi deteksi "API belum aktif" dipindah ke penanganan error create yang
+// sesungguhnya (lihat runInstall + isAppsScriptApiDisabled).
+//
+// Yang tersisa di sini adalah pemeriksaan yang benar-benar sahih & murah: memastikan token yang
+// baru diperoleh SUNGGUH memuat scope yang dibutuhkan. Ini kegagalan nyata yang bisa terjadi -
+// pengguna boleh mencabut centang izin di layar consent Google, dan token tetap terbit tanpa scope
+// itu. Tanpa pemeriksaan ini, gejalanya baru muncul jauh di belakang sebagai 403 yang membingungkan.
+async function verifyGrantedScopes() {
+  const wajib = [
+    'https://www.googleapis.com/auth/script.projects',
+    'https://www.googleapis.com/auth/script.deployments'
+  ];
+  let granted = [];
   try {
-    await apiCall(`${SCRIPT_API}/projects/000000000000000000000000000000000000000000`)
-      .catch(e => { if (e.status !== 404) throw e; });
-    return true;
-  } catch (e) {
-    const msg = (e.body?.error?.message || '').toLowerCase();
-    if (
-      e.status === 403 || 
-      msg.includes('has not been used') || 
-      msg.includes('disabled') || 
-      msg.includes('permission')
-    ) {
-      return false;
+    const res = await fetch(
+      'https://oauth2.googleapis.com/tokeninfo?access_token=' + encodeURIComponent(accessToken)
+    );
+    if (res.ok) {
+      const info = await res.json();
+      granted = String(info.scope || '').split(/\s+/).filter(Boolean);
     }
-    throw e;
+  } catch (e) {
+    // tokeninfo tidak wajib berhasil - kalau tidak bisa dihubungi, jangan menghalangi instalasi.
+    // Kegagalan scope tetap akan tertangkap saat projects.create dijalankan.
+    console.warn('[Installer] tokeninfo tidak dapat dihubungi:', e.message);
+    return { ok: true, missing: [] };
   }
+  if (granted.length === 0) return { ok: true, missing: [] };
+  const missing = wajib.filter(s => !granted.includes(s));
+  return { ok: missing.length === 0, missing };
 }
 
 // ============================================================================
@@ -338,12 +403,20 @@ async function runInstall() {
     setStep(steps.checkLicense, 'done', 
       `Lisensi ${userLicense.licenseId} valid untuk akun ini.`);
     
-    // --- Step 2: Cek Apps Script API ---
+    // --- Step 2: Pastikan izin yang diminta benar-benar diberikan ---
+    // CATATAN: langkah ini TIDAK lagi mengklaim "API aktif" - itu tidak bisa dibuktikan tanpa
+    // benar-benar membuat project. Yang dibuktikan di sini hanya scope token. Status aktif/tidaknya
+    // Apps Script API ditentukan saat projects.create di Step 4.
     setStep(steps.checkApi, 'active', 'Memeriksa izin akun Google Anda...');
-    const apiEnabled = await ensureAppsScriptApiEnabled();
-    if (!apiEnabled) {
-      setStep(steps.checkApi, 'error', 'Perlu 1 langkah aktivasi dari Google');
-      showActivationPrompt();
+    const scopeCheck = await verifyGrantedScopes();
+    if (!scopeCheck.ok) {
+      setStep(steps.checkApi, 'error', 'Ada izin yang belum dicentang');
+      showError(
+        'Izin belum lengkap',
+        `Instalasi membutuhkan izin yang belum diberikan:<br><br>
+         <code>${scopeCheck.missing.join('<br>')}</code><br><br>
+         Klik "Coba Lagi", lalu pastikan SEMUA kotak izin tercentang di layar Google.`
+      );
       return;
     }
     setStep(steps.checkApi, 'done', 'Izin akun sudah sesuai.');
@@ -364,13 +437,28 @@ async function runInstall() {
     }
     
     // --- Step 4: Buat project Apps Script baru ---
+    // Body {"title": "..."} sudah TERBUKTI benar (diuji langsung ke API: HTTP 200). parentId
+    // sengaja TIDAK dikirim - project standalone memang yang diinginkan.
     setStep(steps.createProject, 'active', 'Membuat ruang aplikasi baru...');
     const projectTitle = `${INSTALLER_CONFIG.APP_TITLE} - ${new Date().toISOString().slice(0, 10)}`;
-    const project = await apiCall(`${SCRIPT_API}/projects`, {
-      method: 'POST',
-      body: JSON.stringify({ title: projectTitle })
-    });
+    let project;
+    try {
+      project = await apiCall(`${SCRIPT_API}/projects`, {
+        method: 'POST',
+        body: JSON.stringify({ title: projectTitle })
+      });
+    } catch (e) {
+      // INILAH tempat yang sahih untuk mendeteksi "Apps Script API belum diaktifkan": kalau
+      // create ditolak dengan 403 khas Google, pengguna memang perlu mengaktifkannya sekali.
+      if (isAppsScriptApiDisabled(e)) {
+        setStep(steps.createProject, 'error', 'Perlu 1 langkah aktivasi dari Google');
+        showActivationPrompt();
+        return;
+      }
+      throw e;
+    }
     const scriptId = project.scriptId;
+    if (!scriptId) throw new Error('Project dibuat tapi scriptId tidak diterima dari Google.');
     setStep(steps.createProject, 'done', 'Ruang aplikasi dibuat.');
     
     // --- Step 5: Dorong seluruh source code ---
