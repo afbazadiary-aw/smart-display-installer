@@ -84,7 +84,13 @@ const INSTALLER_CONFIG = {
 
   // Worker pembungkus domain (cloudflare-worker/ di repo SmartDisplayApp).
   // Melayani pendaftaran alamat, ganti nama, dan unggah logo/background.
-  ALAMAT_API: 'https://smartdisplay.afbazada.shop/api',
+  //
+  // SENGAJA "api.smartdisplay…", BUKAN "smartdisplay…" tanpa awalan: hostname
+  // tanpa awalan itu masih Custom Domain milik worker LAMA (small-poetry-76f7)
+  // yang melayani aplikasi pembuat, jadi /api/* di sana tidak akan pernah sampai
+  // ke worker multi-penyewa. Subdomain "api" tercakup route wildcard yang sama
+  // dan namanya sudah dilarang untuk diklaim pembeli.
+  ALAMAT_API: 'https://api.smartdisplay.afbazada.shop/api',
   DOMAIN_INDUK: 'smartdisplay.afbazada.shop',
 
   // Installer subdomain (alamat.html) HANYA perlu tahu SIAPA yang login - ia
