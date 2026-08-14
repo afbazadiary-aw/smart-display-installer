@@ -505,7 +505,8 @@ async function runInstall() {
     createProject: document.getElementById('step-create-project'),
     pushCode: document.getElementById('step-push-code'),
     deploy: document.getElementById('step-deploy'),
-    validate: document.getElementById('step-validate')
+    validate: document.getElementById('step-validate'),
+    alamat: document.getElementById('step-alamat')
   };
   
   try {
@@ -670,11 +671,49 @@ async function runInstall() {
         ? 'Aplikasi aktif dan siap dipakai.' 
         : 'Tidak bisa verifikasi otomatis - coba buka manual.');
     
+    // --- Step 8: Bungkus dengan alamat domain sendiri ---
+    // Aplikasi Apps Script yang dibuka langsung selalu menampilkan bar biru
+    // "Laporkan penyalahgunaan" dari Google. Dibungkus di domain sendiri, bar itu
+    // tidak ikut tampil, dan pembeli mendapat alamat yang bisa dipasang sebagai
+    // aplikasi (PWA) dengan logo sendiri.
+    //
+    // SELURUH langkah ini dibungkus try/catch dan TIDAK PERNAH melempar keluar.
+    // Pada titik ini aplikasi sudah benar-benar terpasang & berjalan; kegagalan
+    // membungkus alamat tidak boleh berubah jadi "Instalasi berhenti di tengah
+    // jalan" yang membuat pembeli mengira semuanya gagal dan memasang ulang.
+    setStep(steps.alamat, 'active', 'Menyiapkan alamat aplikasi...');
+    let alamatDomain = null;
+    try {
+      const res = await fetch(`${INSTALLER_CONFIG.ALAMAT_API}/daftar`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ execUrl: webAppUrl })
+      });
+      const teks = await res.text();
+      let data = {};
+      try { data = teks ? JSON.parse(teks) : {}; } catch (e) { data = {}; }
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      alamatDomain = data.alamat || null;
+      setStep(steps.alamat, 'done', alamatDomain
+        ? (data.sudahAda ? 'Alamat Anda: ' + alamatDomain : 'Alamat dibuat: ' + alamatDomain)
+        : 'Alamat disiapkan.');
+    } catch (e) {
+      console.error('[Installer] Pembungkusan alamat gagal:', e.message);
+      // Ditandai 'done', BUKAN 'error' - tidak ada yang rusak di sisi pembeli.
+      // Aplikasinya berfungsi penuh; hanya alamat pendeknya yang belum ada, dan
+      // itu bisa diselesaikan kapan saja lewat halaman Alamat & Tampilan.
+      setStep(steps.alamat, 'done', 'Dilewati - aplikasi tetap bisa dipakai lewat alamat Google.');
+    }
+
     // --- Simpan receipt ---
     const receipt = {
       scriptId,
       deploymentId: deployment.deploymentId,
       webAppUrl,
+      // Alamat pendek di domain sendiri (null kalau pembungkusan dilewati/gagal).
+      // Ikut disimpan supaya bukti instalasi yang diunduh pembeli memuat alamat
+      // yang benar-benar mereka pakai sehari-hari, bukan cuma URL Google.
+      alamatDomain,
       userEmail,
       licenseId: userLicense.licenseId,
       productName: userLicense.productName,
@@ -741,11 +780,35 @@ function showActivationPrompt() {
 function showSuccessScreen(receipt, usedExistingStorage, memakaiUlangProject) {
   showScreen('success-screen');
   
-  // Tombol buka aplikasi
+  // Tombol buka aplikasi. Kalau alamat pendek berhasil dibuat, ITULAH yang
+  // dibuka - bukan URL Apps Script. Alasannya bukan sekadar rapi: alamat Google
+  // selalu menampilkan bar "Laporkan penyalahgunaan", dan alamat inilah yang
+  // nanti dipasang pembeli sebagai aplikasi di layar HP-nya.
   const btnOpen = document.getElementById('btn-open-app');
-  btnOpen.href = receipt.webAppUrl;
+  btnOpen.href = receipt.alamatDomain ? ('https://' + receipt.alamatDomain) : receipt.webAppUrl;
   btnOpen.target = '_blank';
   btnOpen.rel = 'noopener';
+
+  // Alamat + pintu masuk ke halaman Alamat & Tampilan.
+  const infoAlamat = document.getElementById('info-alamat');
+  if (infoAlamat) {
+    if (receipt.alamatDomain) {
+      infoAlamat.innerHTML =
+        '<p style="margin:0 0 6px">Alamat aplikasi Anda</p>' +
+        '<code style="font-size:14px;font-weight:700;word-break:break-all">' + receipt.alamatDomain + '</code>' +
+        '<p style="margin:10px 0 0;font-size:13px;font-weight:400;color:var(--text-secondary)">' +
+        'Anda bisa mengganti nama alamat ini <strong>satu kali</strong>, serta mengganti logo dan gambar latar kapan saja, di ' +
+        '<a href="./alamat.html">Alamat &amp; Tampilan</a>.</p>';
+    } else {
+      infoAlamat.innerHTML =
+        '<p style="margin:0 0 6px">Alamat pendek belum dibuat</p>' +
+        '<p style="margin:0;font-size:13px;font-weight:400;color:var(--text-secondary)">' +
+        'Aplikasi Anda tetap berfungsi penuh lewat alamat Google di tombol atas. ' +
+        'Untuk mendapatkan alamat pendek beserta logo sendiri, buka ' +
+        '<a href="./alamat.html">Alamat &amp; Tampilan</a> kapan saja.</p>';
+    }
+    infoAlamat.hidden = false;
+  }
   
   // Info storage
   const storageInfo = document.getElementById('storage-info');

@@ -260,6 +260,13 @@
             <span class="step-num"><span class="n">7</span></span>
             <div class="step-body"><span class="step-title">Memastikan aplikasi berjalan</span><span class="step-msg">Menunggu...</span></div>
           </li>
+          <!-- Langkah 8 SENGAJA yang terakhir: aplikasi sudah benar-benar jadi sebelum ini
+               dijalankan, jadi kalau pembungkusan alamat gagal, pemasangannya TIDAK ikut gagal -
+               pembeli tetap punya aplikasi yang berfungsi lewat URL Apps Script. -->
+          <li id="step-alamat" class="step" data-state="pending">
+            <span class="step-num"><span class="n">8</span></span>
+            <div class="step-body"><span class="step-title">Menyiapkan alamat aplikasi</span><span class="step-msg">Menunggu...</span></div>
+          </li>
         </ol>
       </section>
 
@@ -285,6 +292,7 @@
         <div class="icon-round icon-success">✅</div>
         <h2>Smart Display Siap Digunakan!</h2>
         <p class="subtitle">Aplikasi Anda sudah aktif dan sepenuhnya milik akun Google Anda sendiri.</p>
+        <div id="info-alamat" class="storage-info" hidden></div>
         <div id="storage-info" class="storage-info" hidden></div>
         <a id="btn-open-app" href="#" class="btn btn-primary btn-first">Buka Smart Display</a>
         <button id="receipt-download" class="btn">Simpan info instalasi (untuk cadangan)</button>
