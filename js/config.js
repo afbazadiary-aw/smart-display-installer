@@ -81,6 +81,26 @@ const INSTALLER_CONFIG = {
   // API Endpoints
   SCRIPT_API: 'https://script.googleapis.com/v1',
   DRIVE_API: 'https://www.googleapis.com/drive/v3',
+
+  // Worker pembungkus domain (cloudflare-worker/ di repo SmartDisplayApp).
+  // Melayani pendaftaran alamat, ganti nama, dan unggah logo/background.
+  ALAMAT_API: 'https://smartdisplay.afbazada.shop/api',
+  DOMAIN_INDUK: 'smartdisplay.afbazada.shop',
+
+  // Installer subdomain (alamat.html) HANYA perlu tahu SIAPA yang login - ia
+  // tidak menyentuh Apps Script maupun Drive sama sekali. Karena itu izinnya
+  // dibuat terpisah & seminimal mungkin: layar izin yang pendek jauh lebih
+  // menenangkan pembeli yang cuma ingin mengganti logo.
+  OAUTH_SCOPES_ALAMAT: [
+    'https://www.googleapis.com/auth/userinfo.email'
+  ].join(' '),
+
+  // Batas ukuran gambar - HARUS sama dengan BATAS_LOGO/BATAS_BG di worker.
+  // Gambar dikecilkan di browser sebelum dikirim; batas ini jaring pengaman
+  // terakhir supaya penolakan terjadi di sini (pesannya jelas) alih-alih
+  // sebagai HTTP 413 dari worker.
+  MAKS_LOGO_KB: 512,
+  MAKS_BG_KB: 3072,
   
   // Timing
   WARMUP_DELAY: 3000,       // Tunggu Apps Script cold start (ms)

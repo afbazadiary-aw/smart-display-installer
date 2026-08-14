@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Alamat & Tampilan — Smart Display</title>
+<link rel="stylesheet" href="./css/style.css">
+<style>
+/* Halaman ini memakai ulang kelas dari style.css (.container, .screen, .btn, dst).
+   Yang ditambahkan di sini hanya bagian yang memang khas halaman alamat. */
+.backdrop-lite{position:fixed;inset:0;z-index:-1;background:url('./bg-desktop.jpg') center/cover no-repeat}
+@media(max-width:768px){.backdrop-lite{background-image:url('./bg-mobile.jpg')}}
+
+.kartu{background:rgba(255,255,255,.96);border-radius:14px;padding:18px 16px;margin-bottom:14px;
+  box-shadow:0 6px 24px rgba(0,0,0,.08);text-align:left}
+.kartu h3{font-size:14px;margin:0 0 4px}
+.kartu .ket{font-size:12.5px;line-height:1.55;color:#5b6570;margin:0 0 12px}
+
+.alamat-sekarang{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  background:#f2f5f8;border-radius:10px;padding:12px;margin-bottom:14px}
+.alamat-sekarang code{font-size:13.5px;font-weight:700;word-break:break-all}
+
+.baris-nama{display:flex;align-items:stretch;gap:0}
+.baris-nama input{flex:1;min-width:0;padding:11px 12px;border:1.5px solid #d5d9dd;border-right:0;
+  border-radius:9px 0 0 9px;font-size:14px;font-family:inherit;outline:none}
+.baris-nama input:focus{border-color:#3b7ddd}
+.baris-nama .sufiks{display:flex;align-items:center;padding:0 10px;border:1.5px solid #d5d9dd;
+  border-left:0;border-radius:0 9px 9px 0;background:#eef1f4;font-size:12px;color:#5b6570;white-space:nowrap}
+
+.status-nama{font-size:12.5px;margin-top:7px;min-height:18px}
+.status-nama.ok{color:#1a7f4b}
+.status-nama.tidak{color:#c0392b}
+.status-nama.netral{color:#5b6570}
+
+.pratinjau{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.pratinjau img{width:64px;height:64px;object-fit:contain;border-radius:12px;background:#eef1f4;flex-shrink:0}
+.pratinjau.bg img{width:104px;height:64px;object-fit:cover}
+
+.pesan{font-size:12.5px;border-radius:9px;padding:10px 12px;margin-top:10px;display:none;line-height:1.5}
+.pesan.ok{display:block;background:#e8f6ee;color:#1a7f4b}
+.pesan.salah{display:block;background:#fdecea;color:#c0392b}
+
+.terkunci{opacity:.55;pointer-events:none}
+.catatan-kunci{font-size:12px;color:#8a94a0;margin-top:8px;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="backdrop-lite"></div>
+
+<div class="container">
+
+  <!-- ============ LAYAR 1: MASUK ============ -->
+  <section id="layar-masuk" class="screen active">
+    <div class="logo">🎨</div>
+    <h2>Alamat &amp; Tampilan Aplikasi</h2>
+    <p class="subtitle">Ganti alamat aplikasi Anda, logo, dan gambar latar. Masuk dengan akun Google yang Anda pakai saat memasang Smart Display.</p>
+    <button id="btn-masuk" class="btn btn-primary btn-lg">Masuk dengan Google</button>
+  </section>
+
+  <!-- ============ LAYAR 2: BELUM TERPASANG ============ -->
+  <section id="layar-belum" class="screen">
+    <div class="logo">📦</div>
+    <h2>Aplikasi belum terpasang</h2>
+    <p class="subtitle" id="pesan-belum"></p>
+    <a href="./index.html" class="btn btn-primary btn-lg">Buka Installer Aplikasi</a>
+  </section>
+
+  <!-- ============ LAYAR 3: PENGELOLAAN ============ -->
+  <section id="layar-kelola" class="screen">
+    <div class="user-info" id="info-akun" hidden><span class="user-email"></span></div>
+
+    <div class="alamat-sekarang">
+      <span style="font-size:13px;color:#5b6570">Alamat aplikasi Anda</span>
+      <code id="alamat-teks"></code>
+      <a id="tautan-buka" class="btn-text" href="#" target="_blank" rel="noopener">Buka ↗</a>
+    </div>
+
+    <!-- --- Ganti nama (sekali saja) --- -->
+    <div class="kartu" id="kartu-nama">
+      <h3>Ganti nama alamat</h3>
+      <p class="ket" id="ket-nama">Hanya bisa diganti <strong>satu kali</strong>. Sesudah diganti, nama lama tetap bisa dibuka supaya aplikasi yang sudah terpasang di HP tidak putus.</p>
+      <div class="baris-nama">
+        <input id="input-nama" type="text" placeholder="rika" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="32">
+        <span class="sufiks" id="sufiks-domain"></span>
+      </div>
+      <div class="status-nama netral" id="status-nama"></div>
+      <button id="btn-ganti-nama" class="btn btn-primary" style="margin-top:12px" disabled>Ganti Nama</button>
+      <div class="pesan" id="pesan-nama"></div>
+    </div>
+
+    <!-- --- Logo --- -->
+    <div class="kartu">
+      <h3>Logo aplikasi</h3>
+      <p class="ket">Dipakai sebagai ikon di layar HP dan gambar pembuka saat aplikasi dibuka. Sebaiknya gambar persegi. Bisa diganti kapan saja.</p>
+      <div class="pratinjau">
+        <img id="pratinjau-logo" alt="">
+        <div style="flex:1">
+          <input id="berkas-logo" type="file" accept="image/*" hidden>
+          <button class="btn" onclick="document.getElementById('berkas-logo').click()">Pilih Gambar Logo</button>
+        </div>
+      </div>
+      <div class="pesan" id="pesan-logo"></div>
+    </div>
+
+    <!-- --- Background --- -->
+    <div class="kartu">
+      <h3>Gambar latar pembuka</h3>
+      <p class="ket">Latar belakang yang tampil sesaat sebelum aplikasi siap. Bisa diganti kapan saja.</p>
+      <div class="pratinjau bg">
+        <img id="pratinjau-bg" alt="">
+        <div style="flex:1">
+          <input id="berkas-bg" type="file" accept="image/*" hidden>
+          <button class="btn" onclick="document.getElementById('berkas-bg').click()">Pilih Gambar Latar</button>
+        </div>
+      </div>
+      <div class="pesan" id="pesan-bg"></div>
+    </div>
+  </section>
+
+  <!-- ============ LAYAR 4: GAGAL ============ -->
+  <section id="layar-gagal" class="screen">
+    <div class="logo">⚠️</div>
+    <h2 id="judul-gagal">Terjadi Kendala</h2>
+    <div class="error-message" id="pesan-gagal"></div>
+    <button class="btn btn-primary btn-lg" onclick="location.reload()">Coba Lagi</button>
+  </section>
+
+</div>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="./js/config.js" defer></script>
+<script src="./js/alamat.js" defer></script>
+</body>
+</html>
