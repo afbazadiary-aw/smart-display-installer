@@ -54,13 +54,16 @@ function showError(title, message, helpUrl) {
   showScreen('fatal-error');
 }
 
-function showNoLicenseError(email) {
+// alasan diteruskan apa adanya dari worker supaya pembeli tahu MANA masalahnya -
+// belum punya lisensi, lisensi dinonaktifkan, atau masa berlakunya habis. Ketiganya
+// butuh tindakan berbeda dari penjual, jadi menyamakan pesannya hanya menambah
+// bolak-balik yang tidak perlu.
+function showNoLicenseError(email, alasan) {
   const message = document.getElementById('no-license-message');
   message.innerHTML = `
-    <p>Akun Google <strong>${email || '(tidak terdeteksi)'}</strong> 
-       belum memiliki lisensi Smart Display.</p>
-    <p>Silakan hubungi penjual untuk mendapatkan lisensi, 
-       atau login dengan akun yang sudah memiliki lisensi.</p>
+    <p>${alasan ? alasan : 'Akun Google ini belum memiliki lisensi Smart Display.'}</p>
+    <p style="font-size:13px">Akun: <strong>${email || '(tidak terdeteksi)'}</strong></p>
+    <p>Silakan hubungi penjual, atau login dengan akun yang sudah memiliki lisensi.</p>
   `;
   showScreen('no-license-error');
 }
@@ -249,37 +252,47 @@ async function verifyLicense() {
     INSTALLER_CONFIG.LICENSE_FETCH_TIMEOUT
   );
   
+  // PERUBAHAN PENTING: sebelumnya installer mengunduh licenses.json dari GitHub
+  // raw lalu mencari email pembeli di dalamnya. Berkas itu PUBLIK - artinya
+  // seluruh Gmail pembeli bisa dibaca siapa saja di internet, dan setiap pembeli
+  // ikut menerima daftar pembeli lain hanya untuk memeriksa dirinya sendiri.
+  //
+  // Sekarang pertanyaannya dibalik: installer mengirim token Google-nya dan
+  // bertanya "apakah SAYA punya lisensi?". Worker yang memeriksa ke KV dan hanya
+  // mengembalikan lisensi milik penanya. Ini juga menutup celah lain - pemeriksaan
+  // di browser tidak pernah jadi kontrol keamanan (siapa pun bisa melewatinya);
+  // yang mengikat adalah pemeriksaan worker, dan kini keduanya satu mekanisme.
   let data;
   try {
-    const res = await fetch(INSTALLER_CONFIG.LICENSE_API_URL, {
+    const res = await fetch(`${INSTALLER_CONFIG.ALAMAT_API}/lisensi-saya`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${accessToken}` },
       signal: controller.signal,
-      cache: 'no-store'  // Selalu fetch terbaru
+      cache: 'no-store'
     });
     clearTimeout(timeoutId);
-    
+
+    const teks = await res.text();
+    try { data = teks ? JSON.parse(teks) : {}; } catch (e) { data = {}; }
+
     if (!res.ok) {
-      throw new Error(`Server lisensi mengembalikan status ${res.status}`);
+      // 403 = pertanyaannya terjawab dengan jelas: tidak punya lisensi, lisensi
+      // dinonaktifkan, atau masa berlakunya habis. Pesannya datang dari worker
+      // supaya alasannya tepat, bukan tebakan.
+      if (res.status === 403) {
+        showNoLicenseError(userEmail, data.error);
+        return;
+      }
+      throw new Error(data.error || `Server lisensi mengembalikan status ${res.status}`);
     }
-    
-    data = await res.json();
   } catch (e) {
     if (e.name === 'AbortError') {
       throw new Error('Waktu tunggu habis. Periksa koneksi internet Anda.');
     }
     throw new Error(`Tidak bisa menghubungi server lisensi: ${e.message}`);
   }
-  
-  const licenses = Array.isArray(data?.licenses) ? data.licenses : [];
-  
-  // Cari lisensi untuk email ini (case-insensitive)
-  userLicense = licenses.find(lic => 
-    lic.email && lic.email.toLowerCase() === userEmail.toLowerCase()
-  );
-  
-  if (!userLicense) {
-    showNoLicenseError(userEmail);
-    return;
-  }
+
+  userLicense = { email: data.email, licenseId: data.licenseId, productName: data.productName };
   
   // Lisensi valid → tampilkan info user & mulai instalasi
   showScreen('install-screen');
