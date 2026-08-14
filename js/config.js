@@ -71,6 +71,11 @@ const INSTALLER_CONFIG = {
   
   // URL manifest.json (paket instalasi source code Smart Display).
   MANIFEST_URL: './manifest.json',
+
+  // Berkas versi ringan (ratusan byte) yang ditulis berdampingan dengan manifest.
+  // Dipakai installer untuk memutuskan "perlu salin ulang atau tidak" TANPA harus
+  // mengunduh manifest 11MB lebih dulu.
+  VERSI_URL: './versi.json',
   
   // URL ke file JSON yang berisi daftar lisensi.
   LICENSE_API_URL: 'https://raw.githubusercontent.com/afbazadiary-aw/smart-display-licenses/main/licenses.json',

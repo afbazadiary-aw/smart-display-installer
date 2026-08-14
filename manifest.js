@@ -268,6 +268,19 @@ function main() {
   try {
     fs.mkdirSync(path.dirname(OUT_FILE), { recursive: true });
     fs.writeFileSync(OUT_FILE, JSON.stringify(manifest, null, 2));
+
+    // Berkas versi RINGAN, ditulis berdampingan dengan manifest.
+    // Gunanya: installer perlu tahu "apakah pemasangan saya sudah versi terbaru?"
+    // SEBELUM memutuskan menyalin ulang. Kalau jawabannya dicari di manifest.json,
+    // pembeli harus mengunduh 11MB hanya untuk menemukan bahwa tidak ada yang
+    // berubah - persis pemborosan yang ingin dihindari. Berkas ini hanya ratusan byte.
+    const versiFile = path.join(path.dirname(OUT_FILE), 'versi.json');
+    fs.writeFileSync(versiFile, JSON.stringify({
+      version: VERSION,
+      generatedAt: manifest.generatedAt,
+      fileCount: files.length,
+      totalSizeBytes: totalSize
+    }, null, 2));
   } catch (e) {
     console.error(`\n❌ ERROR: Gagal menulis ke ${OUT_FILE}`);
     console.error(e.message);

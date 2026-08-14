@@ -575,6 +575,34 @@ async function runInstall() {
       scriptId = catatanLama.data.scriptId;
       deploymentIdLama = catatanLama.data.deploymentId || null;
       memakaiUlang = true;
+
+      // PERMINTAAN ("kalau file aplikasinya sudah ada, langsung bawa ke halaman aplikasi,
+      // jangan menyalin ulang"): kalau versi yang TERPASANG sama dengan versi yang tersedia,
+      // tidak ada satu byte pun yang perlu dikirim. Menyalin ulang 11MB untuk menghasilkan isi
+      // yang identik hanya membuang kuota & waktu pembeli, dan membuat mereka mengira
+      // pemasangannya bermasalah.
+      //
+      // Versinya diambil dari berkas RINGAN versi.json - bukan dari manifest.json - supaya
+      // pemeriksaan ini sendiri tidak ikut mengunduh 11MB yang justru ingin dihindari.
+      const sudahTerpasang = catatanLama.data.manifestVersion;
+      const alamatSiap = catatanLama.data.alamatDomain || catatanLama.data.webAppUrl;
+      if (sudahTerpasang && alamatSiap) {
+        let versiTersedia = null;
+        try {
+          const rv = await fetch(INSTALLER_CONFIG.VERSI_URL, { cache: 'no-store' });
+          if (rv.ok) versiTersedia = (await rv.json()).version;
+        } catch (e) {
+          console.warn('[Installer] versi.json tidak terbaca, lanjut memperbarui:', e.message);
+        }
+        if (versiTersedia && String(versiTersedia) === String(sudahTerpasang)) {
+          setStep(steps.createProject, 'done', 'Aplikasi Anda sudah terpasang & sudah versi terbaru.');
+          ['pushCode', 'deploy', 'validate', 'alamat'].forEach(function (k) {
+            setStep(steps[k], 'done', 'Dilewati - tidak ada yang perlu diperbarui.');
+          });
+          showSuccessScreen(catatanLama.data, false, true);
+          return;
+        }
+      }
       setStep(steps.createProject, 'done', 'Pemasangan sebelumnya ditemukan - akan diperbarui, bukan dibuat ulang.');
     } else {
       // Body {"title": "..."} sudah TERBUKTI benar (diuji langsung ke API: HTTP 200). parentId
