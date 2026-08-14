@@ -51,6 +51,14 @@ const INSTALLER_CONFIG = {
     'https://www.googleapis.com/auth/script.projects',      // buat & isi project Apps Script
     'https://www.googleapis.com/auth/script.deployments',   // deploy sebagai Web App
     'https://www.googleapis.com/auth/drive.file',           // hanya file yang dibuat installer ini
+    // PERMINTAAN ("kalau akun sudah pernah menginstal, jangan buat file baru"): folder data
+    // aplikasi yang TERSEMBUNYI & terikat pada AKUN Google, bukan pada browser. Di sinilah catatan
+    // instalasi disimpan, sehingga instalasi ulang dari perangkat/browser mana pun tetap mengenali
+    // pemasangan sebelumnya. localStorage TIDAK cukup - ia hilang begitu ganti browser atau
+    // membersihkan data, dan justru itulah yang membuat pemasangan kedua jadi kembar.
+    // Scope ini TIDAK sensitif (tidak menambah beban verifikasi Google) dan tidak memberi akses
+    // apa pun ke berkas pribadi pengguna - hanya ke folder milik aplikasi ini sendiri.
+    'https://www.googleapis.com/auth/drive.appdata',
     'https://www.googleapis.com/auth/userinfo.email'        // tampilkan akun yang sedang login
   ].join(' '),
   

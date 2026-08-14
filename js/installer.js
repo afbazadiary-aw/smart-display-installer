@@ -160,9 +160,35 @@ function initLogin() {
           
           accessToken = resp.access_token;
           await afterLogin();
+        },
+        // PERBAIKAN (dilaporkan: "instalasi kedua tidak pernah selesai dari halaman waiting for
+        // authorization"): SEBELUMNYA token client sama sekali tidak punya error_callback.
+        // callback di atas HANYA dipanggil kalau token berhasil terbit - kalau jendela izin
+        // ditutup pembeli, diblokir pemblokir popup, atau gagal dibuka, TIDAK ADA satu pun kode
+        // yang berjalan: overlay memuat tetap menyala dan halaman diam selamanya. Sekarang setiap
+        // kegagalan itu punya pesan & jalan keluarnya sendiri.
+        error_callback: (err) => {
+          showLoading(false);
+          const tipe = (err && err.type) || '';
+          if (tipe === 'popup_closed') {
+            showError(
+              'Jendela izin Google tertutup',
+              'Proses berhenti karena jendela izin Google ditutup sebelum selesai.<br><br>' +
+              'Klik "Coba Lagi", lalu selesaikan sampai layar izin hilang dengan sendirinya.'
+            );
+          } else if (tipe === 'popup_failed_to_open') {
+            showError(
+              'Jendela izin Google tidak bisa dibuka',
+              'Browser Anda memblokir jendela izin Google.<br><br>' +
+              'Izinkan popup untuk halaman ini (ikon di ujung kanan kolom alamat), lalu klik "Coba Lagi".'
+            );
+          } else {
+            showError('Proses izin Google terhenti', 'Detail: ' + (tipe || 'tidak diketahui') +
+              '<br><br>Klik "Coba Lagi" untuk mengulang.');
+          }
         }
       });
-      
+
       document.getElementById('btn-install').addEventListener('click', () => {
         client.requestAccessToken();
       });
@@ -293,7 +319,13 @@ async function verifyLicense() {
 async function verifyGrantedScopes() {
   const wajib = [
     'https://www.googleapis.com/auth/script.projects',
-    'https://www.googleapis.com/auth/script.deployments'
+    'https://www.googleapis.com/auth/script.deployments',
+    // WAJIB, bukan opsional: tanpa izin ini installer tidak bisa membaca catatan instalasi
+    // per-akun, sehingga tidak tahu pembeli sudah pernah memasang - lalu membuat project KEDUA,
+    // persis masalah yang baru saja diperbaiki. Pembeli yang dulu menyetujui daftar izin LAMA
+    // bisa saja menerima token tanpa izin ini; lebih baik mereka diminta menyetujui ulang
+    // secara jelas daripada diam-diam mendapat aplikasi kembar.
+    'https://www.googleapis.com/auth/drive.appdata'
   ];
   let granted = [];
   try {
@@ -313,6 +345,84 @@ async function verifyGrantedScopes() {
   if (granted.length === 0) return { ok: true, missing: [] };
   const missing = wajib.filter(s => !granted.includes(s));
   return { ok: missing.length === 0, missing };
+}
+
+// ============================================================================
+// 4b. CATATAN INSTALASI PER-AKUN (folder data aplikasi tersembunyi di Drive)
+// ----------------------------------------------------------------------------
+// PERMINTAAN ("kalau akun sudah pernah menginstal dan file aplikasinya masih ada di Drive,
+// jangan membuat file baru"). Sebelumnya satu-satunya jejak instalasi adalah localStorage -
+// terikat pada BROWSER, bukan akun. Begitu pembeli menutup browser sebelum selesai, berpindah
+// perangkat, atau membersihkan data, installer kehilangan ingatan dan membuat project Apps Script
+// KEDUA. Itulah sebabnya muncul dua berkas Smart Display di Drive.
+//
+// Catatan instalasi sekarang disimpan di appDataFolder: folder tersembunyi milik aplikasi ini
+// sendiri yang mengikuti AKUN Google. Tidak terlihat di Drive pengguna, tidak bisa dibaca aplikasi
+// lain, dan tidak ikut hilang saat data browser dibersihkan.
+// ============================================================================
+
+const RECEIPT_FILENAME = 'smartdisplay-install.json';
+
+// Mengembalikan { fileId, data } atau null. TIDAK PERNAH melempar - kegagalan membaca catatan
+// tidak boleh menggagalkan instalasi; paling buruk installer cuma "lupa" seperti perilaku lama.
+async function bacaCatatanInstalasi() {
+  try {
+    const q = encodeURIComponent(`name='${RECEIPT_FILENAME}'`);
+    const list = await apiCall(
+      `${DRIVE_API}/files?spaces=appDataFolder&q=${q}&fields=files(id,name)&pageSize=5`
+    );
+    const f = list.files && list.files[0];
+    if (!f) return null;
+    const res = await fetch(`${DRIVE_API}/files/${f.id}?alt=media`, {
+      headers: { 'Authorization': `Bearer ${accessToken}` }
+    });
+    if (!res.ok) return null;
+    return { fileId: f.id, data: await res.json() };
+  } catch (e) {
+    console.warn('[Installer] Catatan instalasi tidak terbaca:', e.message);
+    return null;
+  }
+}
+
+// Menulis/memperbarui catatan. Metadata dan isi sengaja dikirim terpisah (create lalu PATCH media)
+// alih-alih multipart - jauh lebih sederhana dan tidak rawan salah boundary di browser.
+async function tulisCatatanInstalasi(receipt, fileIdLama) {
+  try {
+    let fileId = fileIdLama;
+    if (!fileId) {
+      const dibuat = await apiCall(`${DRIVE_API}/files`, {
+        method: 'POST',
+        body: JSON.stringify({ name: RECEIPT_FILENAME, parents: ['appDataFolder'] })
+      });
+      fileId = dibuat.id;
+    }
+    await fetch(
+      `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,
+      {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(receipt)
+      }
+    );
+    return fileId;
+  } catch (e) {
+    // Instalasi tetap dianggap berhasil - catatan ini hanya untuk instalasi BERIKUTNYA.
+    console.warn('[Installer] Catatan instalasi gagal disimpan:', e.message);
+    return null;
+  }
+}
+
+// Apakah project Apps Script dari catatan itu MASIH ADA? Catatan saja tidak cukup - pembeli bisa
+// saja sudah menghapus projectnya, dan memaksa memakai ID yang sudah lenyap akan menggagalkan
+// instalasi ulang yang seharusnya sah.
+async function projectMasihAda(scriptId) {
+  if (!scriptId) return false;
+  try {
+    const p = await apiCall(`${SCRIPT_API}/projects/${scriptId}`);
+    return !!(p && p.scriptId);
+  } catch (e) {
+    return false;
+  }
 }
 
 // ============================================================================
@@ -436,30 +546,55 @@ async function runInstall() {
         'Tidak ada data lama. Database baru akan dibuat.');
     }
     
-    // --- Step 4: Buat project Apps Script baru ---
-    // Body {"title": "..."} sudah TERBUKTI benar (diuji langsung ke API: HTTP 200). parentId
-    // sengaja TIDAK dikirim - project standalone memang yang diinginkan.
-    setStep(steps.createProject, 'active', 'Membuat ruang aplikasi baru...');
-    const projectTitle = `${INSTALLER_CONFIG.APP_TITLE} - ${new Date().toISOString().slice(0, 10)}`;
-    let project;
-    try {
-      project = await apiCall(`${SCRIPT_API}/projects`, {
-        method: 'POST',
-        body: JSON.stringify({ title: projectTitle })
-      });
-    } catch (e) {
-      // INILAH tempat yang sahih untuk mendeteksi "Apps Script API belum diaktifkan": kalau
-      // create ditolak dengan 403 khas Google, pengguna memang perlu mengaktifkannya sekali.
-      if (isAppsScriptApiDisabled(e)) {
-        setStep(steps.createProject, 'error', 'Perlu 1 langkah aktivasi dari Google');
-        showActivationPrompt();
-        return;
+    // --- Step 4: Pakai ulang ruang aplikasi lama, atau buat baru kalau memang belum ada ---
+    // PERMINTAAN ("kalau akun sudah pernah menginstal, jangan buat file baru"): catatan instalasi
+    // per-akun dibaca DULU. Kalau project Apps Script-nya masih ada, ia dipakai ulang apa adanya -
+    // tidak ada project kedua, tidak ada berkas kembar di Drive. Isinya tetap ditimpa versi
+    // terbaru di Step 5, jadi instalasi ulang tetap berfungsi sebagai "perbarui".
+    setStep(steps.createProject, 'active', 'Memeriksa pemasangan sebelumnya...');
+    const catatanLama = await bacaCatatanInstalasi();
+    let scriptId = null;
+    let deploymentIdLama = null;
+    let memakaiUlang = false;
+
+    if (catatanLama && catatanLama.data && await projectMasihAda(catatanLama.data.scriptId)) {
+      scriptId = catatanLama.data.scriptId;
+      deploymentIdLama = catatanLama.data.deploymentId || null;
+      memakaiUlang = true;
+      setStep(steps.createProject, 'done', 'Pemasangan sebelumnya ditemukan - akan diperbarui, bukan dibuat ulang.');
+    } else {
+      // Body {"title": "..."} sudah TERBUKTI benar (diuji langsung ke API: HTTP 200). parentId
+      // sengaja TIDAK dikirim - project standalone memang yang diinginkan.
+      setStep(steps.createProject, 'active', 'Membuat ruang aplikasi baru...');
+      const projectTitle = `${INSTALLER_CONFIG.APP_TITLE} - ${new Date().toISOString().slice(0, 10)}`;
+      let project;
+      try {
+        project = await apiCall(`${SCRIPT_API}/projects`, {
+          method: 'POST',
+          body: JSON.stringify({ title: projectTitle })
+        });
+      } catch (e) {
+        // INILAH tempat yang sahih untuk mendeteksi "Apps Script API belum diaktifkan": kalau
+        // create ditolak dengan 403 khas Google, pengguna memang perlu mengaktifkannya sekali.
+        if (isAppsScriptApiDisabled(e)) {
+          setStep(steps.createProject, 'error', 'Perlu 1 langkah aktivasi dari Google');
+          showActivationPrompt();
+          return;
+        }
+        throw e;
       }
-      throw e;
+      scriptId = project.scriptId;
+      if (!scriptId) throw new Error('Project dibuat tapi scriptId tidak diterima dari Google.');
+      setStep(steps.createProject, 'done', 'Ruang aplikasi dibuat.');
+      // Catatan ditulis SEKARANG, bukan nanti setelah semuanya selesai. Kalau pembeli menutup
+      // browser di tengah jalan - persis kejadian yang dilaporkan - project ini sudah terlanjur
+      // ada di Drive mereka, jadi ia HARUS sudah tercatat. Tanpa ini, percobaan berikutnya membuat
+      // project kedua lagi dan masalahnya terulang.
+      await tulisCatatanInstalasi(
+        { scriptId: scriptId, installedAt: new Date().toISOString(), status: 'belum-selesai' },
+        catatanLama ? catatanLama.fileId : null
+      );
     }
-    const scriptId = project.scriptId;
-    if (!scriptId) throw new Error('Project dibuat tapi scriptId tidak diterima dari Google.');
-    setStep(steps.createProject, 'done', 'Ruang aplikasi dibuat.');
     
     // --- Step 5: Dorong seluruh source code ---
     setStep(steps.pushCode, 'active', 'Menyalin seluruh fitur Smart Display...');
@@ -480,14 +615,34 @@ async function runInstall() {
       body: JSON.stringify({ description: `Instalasi - v${manifest.version}` })
     });
     
-    const deployment = await apiCall(`${SCRIPT_API}/projects/${scriptId}/deployments`, {
-      method: 'POST',
-      body: JSON.stringify({
-        versionNumber: version.versionNumber,
-        manifestFileName: 'appsscript',
-        description: `Instalasi otomatis - v${manifest.version}`
-      })
-    });
+    // PERMINTAAN (jangan menumpuk): kalau pemasangan lama punya deployment, deployment ITULAH yang
+    // diperbarui (PUT), bukan dibuat lagi. Selain mencegah tumpukan deployment, ini menjaga URL Web
+    // App pembeli TETAP SAMA - kalau URL berubah setiap kali instalasi ulang, semua tautan & pintasan
+    // yang sudah mereka simpan akan mati. Kalau PUT gagal (mis. deployment sudah dihapus manual),
+    // barulah dibuat yang baru sebagai jalan mundur.
+    const badanDeploy = {
+      versionNumber: version.versionNumber,
+      manifestFileName: 'appsscript',
+      description: `Instalasi otomatis - v${manifest.version}`
+    };
+    let deployment = null;
+    if (deploymentIdLama) {
+      try {
+        deployment = await apiCall(`${SCRIPT_API}/projects/${scriptId}/deployments/${deploymentIdLama}`, {
+          method: 'PUT',
+          body: JSON.stringify({ deploymentConfig: badanDeploy })
+        });
+      } catch (e) {
+        console.warn('[Installer] Deployment lama tidak bisa diperbarui, membuat baru:', e.message);
+        deployment = null;
+      }
+    }
+    if (!deployment) {
+      deployment = await apiCall(`${SCRIPT_API}/projects/${scriptId}/deployments`, {
+        method: 'POST',
+        body: JSON.stringify(badanDeploy)
+      });
+    }
     
     const webAppEntry = deployment.entryPoints?.find(
       e => e.entryPointType === 'WEB_APP'
@@ -535,9 +690,15 @@ async function runInstall() {
     };
     
     localStorage.setItem('smartdisplay_receipt', JSON.stringify(receipt));
+    // Catatan per-akun disempurnakan sekarang setelah semuanya benar-benar selesai (sebelumnya
+    // baru berisi scriptId dengan status 'belum-selesai'). Inilah yang dibaca instalasi berikutnya.
+    await tulisCatatanInstalasi(
+      Object.assign({}, receipt, { status: 'selesai' }),
+      catatanLama ? catatanLama.fileId : null
+    );
     
     // Tampilkan layar sukses
-    showSuccessScreen(receipt, existingStorage.found);
+    showSuccessScreen(receipt, existingStorage.found, memakaiUlang);
     
   } catch (err) {
     console.error('Installation error:', err);
@@ -577,7 +738,7 @@ function showActivationPrompt() {
 // 9. LAYAR SUKSES
 // ============================================================================
 
-function showSuccessScreen(receipt, usedExistingStorage) {
+function showSuccessScreen(receipt, usedExistingStorage, memakaiUlangProject) {
   showScreen('success-screen');
   
   // Tombol buka aplikasi
@@ -588,6 +749,26 @@ function showSuccessScreen(receipt, usedExistingStorage) {
   
   // Info storage
   const storageInfo = document.getElementById('storage-info');
+  // PERMINTAAN ("buka installer di perangkat berbeda dengan akun yang sama jangan sampai membuat
+  // URL Apps Script yang berbeda"): kalau pemasangan lama dipakai ulang, katakan terus terang -
+  // pembeli perlu yakin bahwa alamat aplikasi & datanya tidak berpindah, bukan menebak sendiri.
+  if (memakaiUlangProject) {
+    storageInfo.innerHTML = `
+      <p>✅ Pemasangan Anda sebelumnya diperbarui ke versi terbaru.</p>
+      <p style="margin-top:8px;font-size:13px;font-weight:400;color:var(--text-secondary)">
+        Alamat aplikasi tetap sama seperti sebelumnya, dan tidak ada aplikasi kedua yang dibuat.
+      </p>
+    `;
+    storageInfo.hidden = false;
+    document.getElementById('receipt-download').onclick = () => {
+      const blob = new Blob([JSON.stringify(receipt, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `smartdisplay-receipt-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+    };
+    return;
+  }
   if (usedExistingStorage) {
     storageInfo.innerHTML = `
       <p>✅ Menggunakan database yang sudah ada.</p>
