@@ -1,2 +1,8 @@
 js/installer.js.backup
 *.backup
+
+# Paket instalasi TIDAK LAGI disimpan di repo ini - ia disajikan Worker dari R2
+# dan hanya keluar untuk akun berlisensi. Menyimpannya di repo publik sama saja
+# membagikan seluruh source code gratis, dan menambah ~7MB permanen tiap rilis.
+manifest.json
+versi.json

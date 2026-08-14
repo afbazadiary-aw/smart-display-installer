@@ -498,9 +498,20 @@ async function findExistingStorage() {
 
 async function loadManifest() {
   if (manifestCache) return manifestCache;
-  const res = await fetch(INSTALLER_CONFIG.MANIFEST_URL, { cache: 'no-store' });
+  // Paket kini dijaga lisensi (lihat MANIFEST_URL di config.js) - token Google
+  // pembeli WAJIB ikut, dan metodenya POST karena ini bukan lagi berkas statis.
+  const res = await fetch(INSTALLER_CONFIG.MANIFEST_URL, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${accessToken}` },
+    cache: 'no-store'
+  });
   if (!res.ok) {
-    throw new Error('Gagal memuat paket instalasi (manifest.json). Periksa koneksi internet Anda.');
+    let pesan = '';
+    try { pesan = (await res.json()).error || ''; } catch (e) {}
+    // Pesan dari server diteruskan apa adanya: "lisensi dinonaktifkan" dan "masa
+    // berlaku habis" butuh tindakan berbeda dari penjual, jadi menyamakannya jadi
+    // "gagal memuat paket" hanya menambah bolak-balik yang tidak perlu.
+    throw new Error(pesan || 'Gagal memuat paket instalasi. Periksa koneksi internet Anda.');
   }
   manifestCache = await res.json();
   return manifestCache;

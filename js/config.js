@@ -69,13 +69,20 @@ const INSTALLER_CONFIG = {
   // Versi produk yang dijual. HANYA untuk identifikasi — TIDAK untuk update otomatis.
   PRODUCT_VERSION: '1.0.0',
   
-  // URL manifest.json (paket instalasi source code Smart Display).
-  MANIFEST_URL: './manifest.json',
+  // Paket instalasi (source code Smart Display) - TIDAK LAGI berkas statis di repo.
+  //
+  // KENAPA PINDAH: manifest.json adalah SELURUH source code aplikasi. Selama ia
+  // duduk di repo installer yang publik, siapa pun bisa mengunduhnya tanpa
+  // membeli, tanpa lisensi, tanpa menyentuh installer sama sekali - verifikasi
+  // lisensi yang sudah dibangun ada di installer, bukan di paketnya.
+  // Sekarang paket disajikan Worker dari R2, dan hanya keluar untuk akun dengan
+  // lisensi AKTIF & belum kedaluwarsa (lihat apiPaket di cloudflare-worker).
+  MANIFEST_URL: 'https://api.smartdisplay.afbazada.shop/api/paket',
 
-  // Berkas versi ringan (ratusan byte) yang ditulis berdampingan dengan manifest.
-  // Dipakai installer untuk memutuskan "perlu salin ulang atau tidak" TANPA harus
-  // mengunduh manifest 11MB lebih dulu.
-  VERSI_URL: './versi.json',
+  // Versi paket - SENGAJA tanpa lisensi. Installer perlu tahu "pemasangan saya
+  // sudah terbaru?" sebelum memutuskan mengunduh 11MB, dan angka versi saja tidak
+  // membocorkan apa pun.
+  VERSI_URL: 'https://api.smartdisplay.afbazada.shop/api/versi',
   
   // URL ke file JSON yang berisi daftar lisensi.
   LICENSE_API_URL: 'https://raw.githubusercontent.com/afbazadiary-aw/smart-display-licenses/main/licenses.json',
