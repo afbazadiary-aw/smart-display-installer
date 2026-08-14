@@ -76,6 +76,9 @@ const EXCLUDE_EXACT = new Set([
 // Folder dengan prefix ini akan dilewati (rekursif)
 const EXCLUDE_DIR_PREFIXES = [
   '.git',
+  // Alur kerja Actions - bukan source aplikasi. '.git' saja TIDAK menutupinya:
+  // pencocokannya persis atau berawalan '.git.', sedangkan ini '.github'.
+  '.github',
   '.wrangler',
   '.claude',
   '.vscode',
