@@ -501,4 +501,12 @@ strong { color: var(--text); }
    mana yang utama, tanpa membuat yang kedua sulit dibaca.
    font-weight:400 ditulis eksplisit: sebagian besar induknya (h1/h2/button) tebal, dan
    tanpa ini baris keduanya ikut tebal sehingga tidak terlihat sebagai teks pendamping. */
-.sub-id{display:block;font-size:.78em;font-weight:400;opacity:.72;margin-top:3px;line-height:1.45}
+/* PERMINTAAN ("tulisan English dan Indonesianya berikan spasi, jangan tanpa spasi"):
+   jarak atas dinaikkan 3px -> 7px dan tinggi barisnya dilonggarkan. Dengan 3px kedua
+   kalimat tampak menempel jadi satu blok, sehingga sekilas terbaca sebagai satu kalimat
+   panjang - bukan sepasang terjemahan. Jarak yang cukup membuat mata langsung memisahkan
+   keduanya tanpa perlu membaca dulu. */
+.sub-id{display:block;font-size:.78em;font-weight:400;opacity:.72;margin-top:7px;line-height:1.55}
+/* Di dalam tombol jaraknya sedikit lebih rapat - ruang tombol terbatas, dan 7px di sana
+   membuat tombolnya tumbuh tinggi tanpa perlu. */
+.btn .sub-id{margin-top:4px}

@@ -221,12 +221,28 @@ function kecilkanGambar(file, jenis) {
       const ctx = kanvas.getContext('2d');
 
       if (jenis === 'logo') {
-        const sisi = 512;
-        kanvas.width = kanvas.height = sisi;
+        /* PERBAIKAN (dilaporkan: "logo pecah, karena tampil besar saat membuka aplikasi di
+           laptop"). Dihitung, bukan dikira: layar pembuka menampilkan logo pada 85vmin -
+           di laptop 1080p itu sekitar 918 piksel, dan pada layar berkerapatan ganda sekitar
+           1836 piksel. Logo yang dikecilkan ke 512 px karena itu DIPERBESAR 1,8 sampai 3,6
+           kali saat ditampilkan - itulah yang terlihat pecah, bukan mutu kompresinya.
+           1024 px menutup kasus laptop 1080p sepenuhnya dan menyisakan sedikit ruang untuk
+           layar yang lebih rapat, tanpa membuat berkasnya membengkak berlebihan. */
+        const sisi = 1024;
+        /* TIDAK PERNAH memperbesar. Kalau logo asalnya lebih kecil dari 1024, membesarkannya
+           di kanvas tidak menambah satu pun detail - hanya menambah ukuran berkas sambil
+           membuatnya tampak kabur. Sisi kanvas mengikuti gambar aslinya dalam kasus itu. */
+        const skalaAsli = Math.min(sisi / img.width, sisi / img.height);
+        const skala = Math.min(1, skalaAsli);
+        const sisiKanvas = skalaAsli >= 1 ? Math.max(img.width, img.height) : sisi;
+        kanvas.width = kanvas.height = sisiKanvas;
+        // Penghalusan mutu tinggi - bawaannya 'low' pada sebagian peramban, dan itu
+        // meninggalkan tepi bergerigi pada logo bergaris tipis.
+        ctx.imageSmoothingEnabled = true;
+        try { ctx.imageSmoothingQuality = 'high'; } catch (e) {}
         // "contain" + latar transparan: logo tidak boleh terpotong.
-        const skala = Math.min(sisi / img.width, sisi / img.height);
         const w = img.width * skala, h = img.height * skala;
-        ctx.drawImage(img, (sisi - w) / 2, (sisi - h) / 2, w, h);
+        ctx.drawImage(img, (sisiKanvas - w) / 2, (sisiKanvas - h) / 2, w, h);
         kanvas.toBlob(b => b ? resolve(b) : reject(new Error('Gagal memproses gambar.')), 'image/png');
       } else {
         const maksLebar = 1920;

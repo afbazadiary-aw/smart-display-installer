@@ -117,7 +117,11 @@ const INSTALLER_CONFIG = {
   // Gambar dikecilkan di browser sebelum dikirim; batas ini jaring pengaman
   // terakhir supaya penolakan terjadi di sini (pesannya jelas) alih-alih
   // sebagai HTTP 413 dari worker.
-  MAKS_LOGO_KB: 512,
+  // Dinaikkan bersamaan dengan sisi logo 512 -> 1024 px (lihat kecilkanGambar di
+  // alamat.js): logo 1024 px sebagai PNG bertransparansi biasanya 100-300 KB, tapi logo
+  // berdetail tinggi bisa lebih. Batas 1,5 MB memberi ruang untuk itu tanpa membiarkan
+  // berkas raksasa masuk. Harus SAMA dengan BATAS_LOGO di Worker.
+  MAKS_LOGO_KB: 1536,
   MAKS_BG_KB: 3072,
   
   // Timing
