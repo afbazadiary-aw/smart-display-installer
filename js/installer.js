@@ -21,11 +21,48 @@ let userLicense = null;
 // UI HELPERS
 // ============================================================================
 
+/* PERMINTAAN ("jadikan English tapi di bawahnya ada Bahasa Indonesia dengan ukuran lebih
+   kecil"): pesan langkah disetel dari JS, jadi tidak bisa ditulis dwibahasa langsung di HTML -
+   setStep() memakai textContent yang menghapus seluruh isi elemen, termasuk baris Indonesia
+   yang sudah terpasang di sana.
+
+   Baris keduanya karena itu disusun ulang di sini setiap kali pesan berganti, memakai
+   textContent juga (bukan innerHTML): sebagian pesan galat membawa keterangan dari Google
+   apa adanya, dan menyusunnya sebagai HTML berarti teks dari luar bisa ikut dijalankan. */
+const PESAN_ID_ = {
+  "Checking your Google account permission...": "Memeriksa izin akun Google Anda...",
+  "Account permission is fine.": "Izin akun sudah sesuai.",
+  "Some permissions are not ticked yet": "Ada izin yang belum dicentang",
+  "One activation step needed from Google": "Perlu 1 langkah aktivasi dari Google",
+  "Checking for a previous installation...": "Memeriksa pemasangan sebelumnya...",
+  "Looking for existing app data...": "Mencari data aplikasi lama...",
+  "Your app is already installed and up to date.": "Aplikasi Anda sudah terpasang & sudah versi terbaru.",
+  "Creating a new app space...": "Membuat ruang aplikasi baru...",
+  "App space created.": "Ruang aplikasi dibuat.",
+  "Copying all Smart Display features...": "Menyalin seluruh fitur Smart Display...",
+  "Skipped - nothing needed updating.": "Dilewati - tidak ada yang perlu diperbarui.",
+  "Publishing your app...": "Menerbitkan aplikasi Anda...",
+  "App published successfully.": "Aplikasi berhasil diterbitkan.",
+  "Making sure the app runs properly...": "Memeriksa aplikasi berjalan dengan baik...",
+  "Setting up the app address...": "Menyiapkan alamat aplikasi...",
+  "Skipped - the app still works through its Google address.": "Dilewati - aplikasi tetap bisa dipakai lewat alamat Google.",
+  "Something went wrong at this step.": "Terjadi kendala pada langkah ini."
+};
+
 function setStep(stepEl, state, message) {
   if (!stepEl) return;
   stepEl.dataset.state = state;
   const msgEl = stepEl.querySelector('.step-msg');
-  if (msgEl && message) msgEl.textContent = message;
+  if (msgEl && message) {
+    msgEl.textContent = message;
+    const padanan = PESAN_ID_[message];
+    if (padanan) {
+      const sub = document.createElement('span');
+      sub.className = 'sub-id';
+      sub.textContent = padanan;
+      msgEl.appendChild(sub);
+    }
+  }
 }
 
 function showScreen(id) {
@@ -542,10 +579,10 @@ async function runInstall() {
     // CATATAN: langkah ini TIDAK lagi mengklaim "API aktif" - itu tidak bisa dibuktikan tanpa
     // benar-benar membuat project. Yang dibuktikan di sini hanya scope token. Status aktif/tidaknya
     // Apps Script API ditentukan saat projects.create di Step 4.
-    setStep(steps.checkApi, 'active', 'Memeriksa izin akun Google Anda...');
+    setStep(steps.checkApi, 'active', 'Checking your Google account permission...');
     const scopeCheck = await verifyGrantedScopes();
     if (!scopeCheck.ok) {
-      setStep(steps.checkApi, 'error', 'Ada izin yang belum dicentang');
+      setStep(steps.checkApi, 'error', 'Some permissions are not ticked yet');
       showError(
         'Izin belum lengkap',
         `Instalasi membutuhkan izin yang belum diberikan:<br><br>
@@ -554,10 +591,10 @@ async function runInstall() {
       );
       return;
     }
-    setStep(steps.checkApi, 'done', 'Izin akun sudah sesuai.');
+    setStep(steps.checkApi, 'done', 'Account permission is fine.');
     
     // --- Step 3: Cari storage lama ---
-    setStep(steps.findStorage, 'active', 'Mencari data aplikasi lama...');
+    setStep(steps.findStorage, 'active', 'Looking for existing app data...');
     const existingStorage = await findExistingStorage();
     
     if (existingStorage.found) {
@@ -576,7 +613,7 @@ async function runInstall() {
     // per-akun dibaca DULU. Kalau project Apps Script-nya masih ada, ia dipakai ulang apa adanya -
     // tidak ada project kedua, tidak ada berkas kembar di Drive. Isinya tetap ditimpa versi
     // terbaru di Step 5, jadi instalasi ulang tetap berfungsi sebagai "perbarui".
-    setStep(steps.createProject, 'active', 'Memeriksa pemasangan sebelumnya...');
+    setStep(steps.createProject, 'active', 'Checking for a previous installation...');
     const catatanLama = await bacaCatatanInstalasi();
     let scriptId = null;
     let deploymentIdLama = null;
@@ -606,9 +643,9 @@ async function runInstall() {
           console.warn('[Installer] versi.json tidak terbaca, lanjut memperbarui:', e.message);
         }
         if (versiTersedia && String(versiTersedia) === String(sudahTerpasang)) {
-          setStep(steps.createProject, 'done', 'Aplikasi Anda sudah terpasang & sudah versi terbaru.');
+          setStep(steps.createProject, 'done', 'Your app is already installed and up to date.');
           ['pushCode', 'deploy', 'validate', 'alamat'].forEach(function (k) {
-            setStep(steps[k], 'done', 'Dilewati - tidak ada yang perlu diperbarui.');
+            setStep(steps[k], 'done', 'Skipped - nothing needed updating.');
           });
           showSuccessScreen(catatanLama.data, false, true);
           return;
@@ -618,7 +655,7 @@ async function runInstall() {
     } else {
       // Body {"title": "..."} sudah TERBUKTI benar (diuji langsung ke API: HTTP 200). parentId
       // sengaja TIDAK dikirim - project standalone memang yang diinginkan.
-      setStep(steps.createProject, 'active', 'Membuat ruang aplikasi baru...');
+      setStep(steps.createProject, 'active', 'Creating a new app space...');
       const projectTitle = `${INSTALLER_CONFIG.APP_TITLE} - ${new Date().toISOString().slice(0, 10)}`;
       let project;
       try {
@@ -630,7 +667,7 @@ async function runInstall() {
         // INILAH tempat yang sahih untuk mendeteksi "Apps Script API belum diaktifkan": kalau
         // create ditolak dengan 403 khas Google, pengguna memang perlu mengaktifkannya sekali.
         if (isAppsScriptApiDisabled(e)) {
-          setStep(steps.createProject, 'error', 'Perlu 1 langkah aktivasi dari Google');
+          setStep(steps.createProject, 'error', 'One activation step needed from Google');
           showActivationPrompt();
           return;
         }
@@ -638,7 +675,7 @@ async function runInstall() {
       }
       scriptId = project.scriptId;
       if (!scriptId) throw new Error('Project dibuat tapi scriptId tidak diterima dari Google.');
-      setStep(steps.createProject, 'done', 'Ruang aplikasi dibuat.');
+      setStep(steps.createProject, 'done', 'App space created.');
       // Catatan ditulis SEKARANG, bukan nanti setelah semuanya selesai. Kalau pembeli menutup
       // browser di tengah jalan - persis kejadian yang dilaporkan - project ini sudah terlanjur
       // ada di Drive mereka, jadi ia HARUS sudah tercatat. Tanpa ini, percobaan berikutnya membuat
@@ -650,7 +687,7 @@ async function runInstall() {
     }
     
     // --- Step 5: Dorong seluruh source code ---
-    setStep(steps.pushCode, 'active', 'Menyalin seluruh fitur Smart Display...');
+    setStep(steps.pushCode, 'active', 'Copying all Smart Display features...');
     const manifest = await loadManifest();
     
     await apiCall(`${SCRIPT_API}/projects/${scriptId}/content`, {
@@ -662,7 +699,7 @@ async function runInstall() {
       `${manifest.files.length} berkas berhasil disalin (versi ${manifest.version}).`);
     
     // --- Step 6: Buat versi + deploy ---
-    setStep(steps.deploy, 'active', 'Menerbitkan aplikasi Anda...');
+    setStep(steps.deploy, 'active', 'Publishing your app...');
     const version = await apiCall(`${SCRIPT_API}/projects/${scriptId}/versions`, {
       method: 'POST',
       body: JSON.stringify({ description: `Instalasi - v${manifest.version}` })
@@ -706,10 +743,10 @@ async function runInstall() {
       throw new Error('Deployment berhasil tapi URL Web App tidak ditemukan.');
     }
     
-    setStep(steps.deploy, 'done', 'Aplikasi berhasil diterbitkan.');
+    setStep(steps.deploy, 'done', 'App published successfully.');
     
     // --- Step 7: Validasi ---
-    setStep(steps.validate, 'active', 'Memeriksa aplikasi berjalan dengan baik...');
+    setStep(steps.validate, 'active', 'Making sure the app runs properly...');
     await new Promise(r => setTimeout(r, INSTALLER_CONFIG.WARMUP_DELAY));
     
     let liveOk = false;
@@ -733,7 +770,7 @@ async function runInstall() {
     // Pada titik ini aplikasi sudah benar-benar terpasang & berjalan; kegagalan
     // membungkus alamat tidak boleh berubah jadi "Instalasi berhenti di tengah
     // jalan" yang membuat pembeli mengira semuanya gagal dan memasang ulang.
-    setStep(steps.alamat, 'active', 'Menyiapkan alamat aplikasi...');
+    setStep(steps.alamat, 'active', 'Setting up the app address...');
     let alamatDomain = null;
     try {
       const res = await fetch(`${INSTALLER_CONFIG.ALAMAT_API}/daftar`, {
@@ -754,7 +791,7 @@ async function runInstall() {
       // Ditandai 'done', BUKAN 'error' - tidak ada yang rusak di sisi pembeli.
       // Aplikasinya berfungsi penuh; hanya alamat pendeknya yang belum ada, dan
       // itu bisa diselesaikan kapan saja lewat halaman Alamat & Tampilan.
-      setStep(steps.alamat, 'done', 'Dilewati - aplikasi tetap bisa dipakai lewat alamat Google.');
+      setStep(steps.alamat, 'done', 'Skipped - the app still works through its Google address.');
     }
 
     // --- Simpan receipt ---
@@ -794,7 +831,7 @@ async function runInstall() {
   } catch (err) {
     console.error('Installation error:', err);
     const activeStep = Object.values(steps).find(s => s.dataset.state === 'active');
-    if (activeStep) setStep(activeStep, 'error', 'Terjadi kendala pada langkah ini.');
+    if (activeStep) setStep(activeStep, 'error', 'Something went wrong at this step.');
     
     showError(
       'Instalasi berhenti di tengah jalan',

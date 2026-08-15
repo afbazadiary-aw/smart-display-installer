@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Alamat & Tampilan — Smart Display</title>
+<title>App Address & Appearance — Smart Display</title>
 <link rel="stylesheet" href="./css/style.css">
 <style>
 /* Halaman ini memakai ulang kelas dari style.css (.container, .screen, .btn, dst).
@@ -56,8 +56,8 @@
   <!-- ============ LAYAR 1: MASUK ============ -->
   <section id="layar-masuk" class="screen active">
     <div class="logo">🎨</div>
-    <h2>Alamat &amp; Tampilan Aplikasi</h2>
-    <p class="subtitle">Ganti alamat aplikasi Anda, logo, dan gambar latar. Masuk dengan akun Google yang Anda pakai saat memasang Smart Display.</p>
+    <h2>App address &amp; appearance<span class="sub-id">Alamat &amp; Tampilan Aplikasi</span></h2>
+    <p class="subtitle">Change your app address, logo, and background image. Sign in with the Google account you used to install Smart Display.<span class="sub-id">Ganti alamat aplikasi Anda, logo, dan gambar latar. Masuk dengan akun Google yang Anda pakai saat memasang Smart Display.</span></p>
     <button id="btn-masuk" class="btn btn-primary btn-lg">Masuk dengan Google</button>
   </section>
 
@@ -88,28 +88,28 @@
         <span class="sufiks" id="sufiks-domain"></span>
       </div>
       <div class="status-nama netral" id="status-nama"></div>
-      <button id="btn-ganti-nama" class="btn btn-primary" style="margin-top:12px" disabled>Ganti Nama</button>
+      <button id="btn-ganti-nama" class="btn btn-primary" style="margin-top:12px" disabled>Change name<span class="sub-id">Ganti Nama</span></button>
       <div class="pesan" id="pesan-nama"></div>
     </div>
 
     <!-- --- Nama aplikasi (nama yang tertulis di bawah ikon terpasang) --- -->
     <div class="kartu">
-      <h3>Nama aplikasi</h3>
-      <p class="ket">Nama yang tertulis di bawah ikon setelah aplikasi dipasang, di HP maupun di laptop. Kosongkan untuk memakai Smart Display. Bisa diganti kapan saja.</p>
+      <h3>App name<span class="sub-id">Nama aplikasi</span></h3>
+      <p class="ket">The name shown under the icon once the app is installed, on phone and laptop alike. Leave it empty to use Smart Display. You can change it any time.<span class="sub-id">Nama yang tertulis di bawah ikon setelah aplikasi dipasang, di HP maupun di laptop. Kosongkan untuk memakai Smart Display. Bisa diganti kapan saja.</span></p>
       <input id="input-nama-app" type="text" maxlength="30" placeholder="Smart Display" autocomplete="off">
-      <button id="btn-nama-app" class="btn btn-primary" style="margin-top:12px">Simpan Nama</button>
+      <button id="btn-nama-app" class="btn btn-primary" style="margin-top:12px">Save name<span class="sub-id">Simpan Nama</span></button>
       <div class="pesan" id="pesan-nama-app"></div>
     </div>
 
     <!-- --- Logo --- -->
     <div class="kartu">
-      <h3>Logo aplikasi</h3>
-      <p class="ket">Dipakai sebagai ikon di layar HP dan gambar pembuka saat aplikasi dibuka. Sebaiknya gambar persegi. Bisa diganti kapan saja.</p>
+      <h3>App logo<span class="sub-id">Logo aplikasi</span></h3>
+      <p class="ket">Used as the icon on your phone and the opening image. A square image works best. You can change it any time.<span class="sub-id">Dipakai sebagai ikon di layar HP dan gambar pembuka saat aplikasi dibuka. Sebaiknya gambar persegi. Bisa diganti kapan saja.</span></p>
       <div class="pratinjau">
         <img id="pratinjau-logo" alt="">
         <div style="flex:1">
           <input id="berkas-logo" type="file" accept="image/*" hidden>
-          <button class="btn" onclick="document.getElementById('berkas-logo').click()">Pilih Gambar Logo</button>
+          <button class="btn" onclick="document.getElementById('berkas-logo').click()">Choose logo image<span class="sub-id">Pilih Gambar Logo</span></button>
         </div>
       </div>
       <div class="pesan" id="pesan-logo"></div>
@@ -117,13 +117,13 @@
 
     <!-- --- Background --- -->
     <div class="kartu">
-      <h3>Gambar latar pembuka</h3>
-      <p class="ket">Latar belakang yang tampil sesaat sebelum aplikasi siap. Bisa diganti kapan saja.</p>
+      <h3>Opening background image<span class="sub-id">Gambar latar pembuka</span></h3>
+      <p class="ket">The background shown just before the app is ready. You can change it any time.<span class="sub-id">Latar belakang yang tampil sesaat sebelum aplikasi siap. Bisa diganti kapan saja.</span></p>
       <div class="pratinjau bg">
         <img id="pratinjau-bg" alt="">
         <div style="flex:1">
           <input id="berkas-bg" type="file" accept="image/*" hidden>
-          <button class="btn" onclick="document.getElementById('berkas-bg').click()">Pilih Gambar Latar</button>
+          <button class="btn" onclick="document.getElementById('berkas-bg').click()">Choose background image<span class="sub-id">Pilih Gambar Latar</span></button>
         </div>
       </div>
       <div class="pesan" id="pesan-bg"></div>
@@ -133,9 +133,9 @@
   <!-- ============ LAYAR 4: GAGAL ============ -->
   <section id="layar-gagal" class="screen">
     <div class="logo">⚠️</div>
-    <h2 id="judul-gagal">Terjadi Kendala</h2>
+    <h2 id="judul-gagal">Something went wrong<span class="sub-id">Terjadi Kendala</span></h2>
     <div class="error-message" id="pesan-gagal"></div>
-    <button class="btn btn-primary btn-lg" onclick="location.reload()">Coba Lagi</button>
+    <button class="btn btn-primary btn-lg" onclick="location.reload()">Try again<span class="sub-id">Coba Lagi</span></button>
   </section>
 
 </div>

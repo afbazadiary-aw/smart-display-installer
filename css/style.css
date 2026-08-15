@@ -494,3 +494,11 @@ strong { color: var(--text); }
     background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
   }
 }
+/* PERMINTAAN ("jadikan English tapi di bawahnya ada Bahasa Indonesia dengan ukuran lebih
+   kecil"): baris Indonesia diletakkan sebagai blok tersendiri di bawah teks Inggrisnya,
+   bukan disisipkan dalam kurung di baris yang sama - kalimat panjang jadi tidak terbaca
+   kalau keduanya dipaksa sebaris. Diberi ukuran & warna yang lebih redup supaya jelas
+   mana yang utama, tanpa membuat yang kedua sulit dibaca.
+   font-weight:400 ditulis eksplisit: sebagian besar induknya (h1/h2/button) tebal, dan
+   tanpa ini baris keduanya ikut tebal sehingga tidak terlihat sebagai teks pendamping. */
+.sub-id{display:block;font-size:.78em;font-weight:400;opacity:.72;margin-top:3px;line-height:1.45}
