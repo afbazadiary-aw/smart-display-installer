@@ -121,6 +121,10 @@ async function muatStatus() {
   document.getElementById('pratinjau-logo').src = 'https://' + s.alamat + '/icon.png?t=' + Date.now();
   document.getElementById('pratinjau-bg').src = 'https://' + s.alamat + '/bg.png?t=' + Date.now();
 
+  // Diisi DI SINI, bukan saat halaman dimuat: statusSekarang baru ada setelah login selesai.
+  const inpNamaApp = document.getElementById('input-nama-app');
+  if (inpNamaApp) inpNamaApp.value = (s.namaApp && s.namaApp !== 'Smart Display') ? s.namaApp : '';
+
   if (s.sudahGantiNama) {
     document.getElementById('kartu-nama').classList.add('terkunci');
     document.getElementById('ket-nama').innerHTML =
@@ -238,6 +242,44 @@ function kecilkanGambar(file, jenis) {
   });
 }
 
+/**
+ * Salinan logo KHUSUS untuk ikon terpasang di HP.
+ *
+ * Android memakai ikon "maskable" apa adanya lalu memotongnya mengikuti bentuk peluncur
+ * (lingkaran atau kotak membulat). Aturannya: isi ikon harus berada di dalam zona aman,
+ * yaitu lingkaran seluas 80% kanvas. Logo yang digambar penuh sampai tepi - seperti yang
+ * dikirim sebelumnya - membuat lingkaran logo persis menyentuh sisi kotak putihnya. Di
+ * laptop tidak terjadi karena desktop memakai ikon biasa tanpa pemotongan bentuk.
+ *
+ * 72% dipilih, bukan 80% mepet: pada 80% logo tepat menyinggung batas zona aman dan
+ * hasilnya masih terasa sesak. 72% menyisakan jarak yang benar-benar terlihat.
+ *
+ * Latarnya diisi PUTIH, bukan dibiarkan transparan - bagian transparan pada ikon maskable
+ * diisi sendiri oleh peluncur dengan warna yang tidak bisa kita tentukan, jadi hasilnya
+ * berbeda-beda antar HP.
+ */
+function buatIkonBerjarak(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const sisi = 512, isi = Math.round(sisi * 0.72);
+      const kanvas = document.createElement('canvas');
+      kanvas.width = kanvas.height = sisi;
+      const ctx = kanvas.getContext('2d');
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, sisi, sisi);
+      const skala = Math.min(isi / img.width, isi / img.height);
+      const w = img.width * skala, h = img.height * skala;
+      ctx.drawImage(img, (sisi - w) / 2, (sisi - h) / 2, w, h);
+      kanvas.toBlob(b => b ? resolve(b) : reject(new Error('Gagal memproses gambar.')), 'image/png');
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Berkas itu bukan gambar yang bisa dibaca.')); };
+    img.src = url;
+  });
+}
+
 async function unggahGambar(file, jenis) {
   const idPesan = jenis === 'logo' ? 'pesan-logo' : 'pesan-bg';
   const idPratinjau = jenis === 'logo' ? 'pratinjau-logo' : 'pratinjau-bg';
@@ -265,6 +307,15 @@ async function unggahGambar(file, jenis) {
     // gambar baru, bukan salinan lama dari cache browser.
     document.getElementById(idPratinjau).src =
       'https://' + statusSekarang.alamat + (jenis === 'logo' ? '/icon.png?t=' : '/bg.png?t=') + Date.now();
+    // Versi berjarak-tepi dikirim menyusul, dan kegagalannya SENGAJA tidak membatalkan apa pun:
+    // logo utamanya sudah tersimpan, dan tanpa berkas ini manifest cukup tidak menyebut ikon
+    // maskable - Chrome lalu menambahkan jarak tepinya sendiri. Menurun, tidak rusak.
+    if (jenis === 'logo') {
+      try {
+        const blobMask = await buatIkonBerjarak(file);
+        await panggil('/gambar?jenis=maskable', { method: 'POST', headers: { 'Content-Type': blobMask.type }, body: blobMask });
+      } catch (e) { /* diabaikan dengan sengaja - lihat catatan di atas */ }
+    }
     pesan(idPesan, 'Tersimpan. Aplikasi yang sudah terpasang mungkin perlu dibuka ulang agar ikonnya ikut berganti.', 'ok');
   } catch (e) {
     pesan(idPesan, e.message, 'salah');
@@ -275,6 +326,22 @@ async function unggahGambar(file, jenis) {
 window.addEventListener('DOMContentLoaded', () => {
   siapkanLogin();
   pasangCekNama();
+  // Nama aplikasi: kosong berarti kembali ke Smart Display, ditentukan server.
+  document.getElementById('btn-nama-app').addEventListener('click', async () => {
+    const btn = document.getElementById('btn-nama-app');
+    btn.disabled = true;
+    pesan('pesan-nama-app', 'Menyimpan…', 'ok');
+    try {
+      const r = await panggil('/nama-app', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nama: document.getElementById('input-nama-app').value })
+      });
+      document.getElementById('input-nama-app').value = (r && r.namaApp) || 'Smart Display';
+      pesan('pesan-nama-app', 'Tersimpan sebagai "' + ((r && r.namaApp) || 'Smart Display') +
+        '". Aplikasi yang sudah terpasang perlu dipasang ulang agar namanya ikut berganti.', 'ok');
+    } catch (e) { pesan('pesan-nama-app', e.message, 'salah'); }
+    btn.disabled = false;
+  });
   document.getElementById('berkas-logo').addEventListener('change', e => {
     if (e.target.files[0]) unggahGambar(e.target.files[0], 'logo');
     e.target.value = '';

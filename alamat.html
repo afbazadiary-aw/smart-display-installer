@@ -24,6 +24,10 @@
 .baris-nama input{flex:1;min-width:0;padding:11px 12px;border:1.5px solid #d5d9dd;border-right:0;
   border-radius:9px 0 0 9px;font-size:14px;font-family:inherit;outline:none}
 .baris-nama input:focus{border-color:#3b7ddd}
+/* Kolom nama aplikasi: berdiri sendiri (bukan bagian .baris-nama yang menempel sufiks
+   domain), jadi gayanya disamakan di sini supaya tidak terlihat asing di antara kartu lain. */
+#input-nama-app{width:100%;box-sizing:border-box;padding:11px 12px;border:1.5px solid #d5d9dd;border-radius:8px;font-size:15px;font-family:inherit;outline:none}
+#input-nama-app:focus{border-color:#3b7ddd}
 .baris-nama .sufiks{display:flex;align-items:center;padding:0 10px;border:1.5px solid #d5d9dd;
   border-left:0;border-radius:0 9px 9px 0;background:#eef1f4;font-size:12px;color:#5b6570;white-space:nowrap}
 
@@ -86,6 +90,15 @@
       <div class="status-nama netral" id="status-nama"></div>
       <button id="btn-ganti-nama" class="btn btn-primary" style="margin-top:12px" disabled>Ganti Nama</button>
       <div class="pesan" id="pesan-nama"></div>
+    </div>
+
+    <!-- --- Nama aplikasi (nama yang tertulis di bawah ikon terpasang) --- -->
+    <div class="kartu">
+      <h3>Nama aplikasi</h3>
+      <p class="ket">Nama yang tertulis di bawah ikon setelah aplikasi dipasang, di HP maupun di laptop. Kosongkan untuk memakai Smart Display. Bisa diganti kapan saja.</p>
+      <input id="input-nama-app" type="text" maxlength="30" placeholder="Smart Display" autocomplete="off">
+      <button id="btn-nama-app" class="btn btn-primary" style="margin-top:12px">Simpan Nama</button>
+      <div class="pesan" id="pesan-nama-app"></div>
     </div>
 
     <!-- --- Logo --- -->
