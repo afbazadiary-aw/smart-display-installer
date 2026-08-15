@@ -270,6 +270,14 @@ function kecilkanGambar(file, jenis) {
  * 72% dipilih, bukan 80% mepet: pada 80% logo tepat menyinggung batas zona aman dan
  * hasilnya masih terasa sesak. 72% menyisakan jarak yang benar-benar terlihat.
  *
+ * REVISI (dilaporkan: "ukuran icon yang terinstal di HP masih kurang kecil bulatannya agar
+ * tidak menyentuh blok kotak dari HP... terlalu mepet dengan lingkaran icon"): diturunkan
+ * lagi ke 62%. Angka 72% dihitung terhadap zona aman berbentuk LINGKARAN - itu benar kalau
+ * peluncur memotong ikonnya jadi lingkaran. Tapi banyak peluncur Android memakai bentuk
+ * kotak membulat, sehingga yang terlihat justru hampir seluruh kanvas: kotak putih penuh
+ * dengan lingkaran logo yang nyaris menyentuh keempat sisinya. Pada 62% jarak tepinya
+ * terlihat jelas di KEDUA bentuk peluncur, bukan hanya di yang bulat.
+ *
  * Latarnya diisi PUTIH, bukan dibiarkan transparan - bagian transparan pada ikon maskable
  * diisi sendiri oleh peluncur dengan warna yang tidak bisa kita tentukan, jadi hasilnya
  * berbeda-beda antar HP.
@@ -280,7 +288,7 @@ function buatIkonBerjarak(file) {
     const img = new Image();
     img.onload = () => {
       URL.revokeObjectURL(url);
-      const sisi = 512, isi = Math.round(sisi * 0.72);
+      const sisi = 512, isi = Math.round(sisi * 0.62);
       const kanvas = document.createElement('canvas');
       kanvas.width = kanvas.height = sisi;
       const ctx = kanvas.getContext('2d');
@@ -326,13 +334,23 @@ async function unggahGambar(file, jenis) {
     // Versi berjarak-tepi dikirim menyusul, dan kegagalannya SENGAJA tidak membatalkan apa pun:
     // logo utamanya sudah tersimpan, dan tanpa berkas ini manifest cukup tidak menyebut ikon
     // maskable - Chrome lalu menambahkan jarak tepinya sendiri. Menurun, tidak rusak.
+    let maskGagal = false;
     if (jenis === 'logo') {
       try {
         const blobMask = await buatIkonBerjarak(file);
         await panggil('/gambar?jenis=maskable', { method: 'POST', headers: { 'Content-Type': blobMask.type }, body: blobMask });
-      } catch (e) { /* diabaikan dengan sengaja - lihat catatan di atas */ }
+      } catch (e) {
+        // Tidak membatalkan apa pun (lihat catatan di atas), tapi TIDAK lagi dibisukan:
+        // kalau berkas ini gagal, ikon di HP memakai jarak tepi bawaan Chrome yang lebih
+        // sempit - dan dulu tidak ada satu pun tanda kenapa hasilnya berbeda dari harapan.
+        maskGagal = true;
+        console.warn('[installer] ikon berjarak-tepi gagal dikirim:', e);
+      }
     }
-    pesan(idPesan, 'Tersimpan. Aplikasi yang sudah terpasang mungkin perlu dibuka ulang agar ikonnya ikut berganti.', 'ok');
+    pesan(idPesan, maskGagal
+      ? 'Logo tersimpan, tapi versi ikon HP gagal dikirim - ikon di HP memakai jarak tepi bawaan. Coba unggah logo sekali lagi.'
+      : 'Tersimpan. Aplikasi yang sudah terpasang mungkin perlu dibuka ulang agar ikonnya ikut berganti.',
+      maskGagal ? 'salah' : 'ok');
   } catch (e) {
     pesan(idPesan, e.message, 'salah');
   }
