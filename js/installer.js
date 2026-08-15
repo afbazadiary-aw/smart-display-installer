@@ -49,9 +49,29 @@ const PESAN_ID_ = {
   "Something went wrong at this step.": "Terjadi kendala pada langkah ini."
 };
 
+/* Kemajuan dihitung dari langkah yang BENAR-BENAR selesai, bukan dari waktu berjalan.
+   Bilah yang bergerak sendiri menurut waktu akan berbohong tepat saat pembeli paling butuh
+   jujur - yaitu ketika prosesnya tersendat. Cincin ini justru berhenti di situ, dan itu
+   informasi yang berguna. */
+function perbaruiKemajuan_() {
+  const semua = document.querySelectorAll('.steps .step');
+  if (!semua.length) return;
+  let selesai = 0;
+  semua.forEach(function (el) { if (el.dataset.state === 'done') selesai++; });
+  const rasio = selesai / semua.length;
+  const kartu = document.querySelector('.card');
+  if (kartu) {
+    kartu.style.setProperty('--progress', String(rasio));
+    if (rasio >= 1) kartu.classList.add('selesai'); else kartu.classList.remove('selesai');
+  }
+  const label = document.getElementById('progres-persen');
+  if (label) label.textContent = Math.round(rasio * 100) + '%';
+}
+
 function setStep(stepEl, state, message) {
   if (!stepEl) return;
   stepEl.dataset.state = state;
+  perbaruiKemajuan_();
   const msgEl = stepEl.querySelector('.step-msg');
   if (msgEl && message) {
     msgEl.textContent = message;

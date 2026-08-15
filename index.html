@@ -58,7 +58,7 @@
   /* ---------- Stage & card ---------- */
   .stage{position:relative;z-index:2;min-height:100dvh;display:flex;align-items:center;justify-content:center;
     padding:clamp(24px,6vw,72px) clamp(16px,5vw,72px)}
-  .card{width:100%;max-width:500px;background:var(--glass-bg);backdrop-filter:blur(18px) saturate(150%);
+  .card{position:relative;width:100%;max-width:500px;background:var(--glass-bg);backdrop-filter:blur(18px) saturate(150%);
     -webkit-backdrop-filter:blur(18px) saturate(150%);border:1.5px solid var(--glass-border-soft);
     border-radius:var(--radius);padding:clamp(30px,4vw,46px);box-shadow:0 20px 60px rgba(0,0,0,.5);
     animation:cardIn .5s ease}
@@ -178,6 +178,60 @@
     .card{padding:26px 20px;border-radius:18px}
     footer.version{left:50%;transform:translateX(-50%)}
   }
+
+/* PERMINTAAN ("saat menyalin fitur aplikasi cukup lama - kalau kotak installer ada efek
+   cahaya mengelilingi dengan perkiraan, saat penuh berarti selesai, akan lebih jelas bagi
+   pembeli").
+
+   Cincin ini digerakkan satu variabel: --progress, bernilai 0 sampai 1. Nilainya dihitung
+   dari jumlah langkah yang benar-benar selesai, bukan dari penghitung waktu - jadi cincinnya
+   memberi tahu keadaan yang SEBENARNYA. Bilah kemajuan yang jalan sendiri menurut waktu akan
+   berbohong tepat ketika pembeli paling butuh jujur: saat prosesnya tersendat.
+
+   Dibuat dengan conic-gradient yang ditutup mask sehingga hanya menyisakan tepinya - trik
+   baku untuk membuat bingkai bergradasi. Kalau peramban tidak mendukung mask-composite,
+   cincinnya sekadar tidak tampil; instalasinya tidak terpengaruh sama sekali.
+
+   from -90deg supaya mulainya dari atas-tengah, arah yang dibaca orang sebagai "mulai". */
+.card{--progress:0}
+.card::before{
+  content:'';position:absolute;inset:-2px;border-radius:calc(var(--radius) + 2px);padding:2px;
+  background:conic-gradient(from -90deg,
+    #6ee7ff 0deg,
+    #7c9cff calc(var(--progress) * 360deg),
+    rgba(255,255,255,.06) calc(var(--progress) * 360deg));
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;
+  mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite:exclude;
+  pointer-events:none;
+  transition:background .6s ease;
+}
+/* Cahaya lembut di belakang kartu, ikut menguat seiring kemajuan - inilah "efek cahaya"-nya.
+   Memakai opacity, bukan mengubah box-shadow terus-menerus: menganimasikan opacity jauh
+   lebih murah bagi peramban dan tidak memicu penghitungan tata letak ulang. */
+.card::after{
+  content:'';position:absolute;inset:-2px;border-radius:calc(var(--radius) + 2px);
+  box-shadow:0 0 34px 2px rgba(110,231,255,.42);
+  opacity:calc(var(--progress) * .85);
+  pointer-events:none;transition:opacity .6s ease;z-index:-1;
+}
+/* Saat penuh: satu denyut singkat sebagai penanda selesai, lalu berhenti. Sengaja tidak
+   berdenyut terus - kedipan tanpa henti justru membuat layar terasa belum tuntas. */
+.card.selesai::after{animation:cincinSelesai 1.1s ease-out 1}
+@keyframes cincinSelesai{
+  0%{opacity:.85;box-shadow:0 0 34px 2px rgba(110,231,255,.42)}
+  45%{opacity:1;box-shadow:0 0 56px 8px rgba(110,231,255,.75)}
+  100%{opacity:.85;box-shadow:0 0 34px 2px rgba(110,231,255,.42)}
+}
+@media (prefers-reduced-motion:reduce){
+  .card::before,.card::after{transition:none}
+  .card.selesai::after{animation:none}
+}
+/* Angka persen di samping judul - "perkiraan" yang diminta, dalam bentuk yang bisa dibaca
+   sekilas tanpa menghitung langkah satu per satu. */
+.progres-persen{display:inline-block;margin-left:8px;font-size:.62em;font-weight:600;
+  color:#6ee7ff;vertical-align:middle;letter-spacing:.02em}
 </style>
 <!-- Library login Google (Google Identity Services) -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -224,7 +278,7 @@
 
       <!-- ============ LAYAR 2: PROSES INSTALASI ============ -->
       <section id="install-screen" class="screen">
-        <h2>Installing Smart Display...<span class="sub-id">Memasang Smart Display...</span></h2>
+        <h2>Installing Smart Display...<span id="progres-persen" class="progres-persen">0%</span><span class="sub-id">Memasang Smart Display...</span></h2>
         <p class="subtitle">Please keep this page open until it finishes (about 1-2 minutes).<span class="sub-id">Mohon jangan tutup halaman ini sampai selesai (sekitar 1-2 menit).</span></p>
 
         <div id="user-info" class="user-info" hidden>
