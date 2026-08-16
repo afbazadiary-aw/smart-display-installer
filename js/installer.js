@@ -49,23 +49,85 @@ const PESAN_ID_ = {
   "Something went wrong at this step.": "Terjadi kendala pada langkah ini."
 };
 
-/* Kemajuan dihitung dari langkah yang BENAR-BENAR selesai, bukan dari waktu berjalan.
-   Bilah yang bergerak sendiri menurut waktu akan berbohong tepat saat pembeli paling butuh
-   jujur - yaitu ketika prosesnya tersendat. Cincin ini justru berhenti di situ, dan itu
-   informasi yang berguna. */
+/* KEMAJUAN: dasar yang jujur + perayapan di dalam langkah yang sedang berjalan.
+
+   PERMINTAAN pembeli aplikasi ("efek cahaya mengelilingi pop terus berjalan, bukan berhenti
+   sambil menunggu penyalinan kode; begitu juga prosentase - saat penyalinan tetap berjalan
+   51%, 53%, 55% dst"). Penyalinan kode memang lama, dan cincin serta angka yang membeku di
+   satu nilai membuat prosesnya terlihat mati.
+
+   Versi sebelumnya SENGAJA berhenti, dengan alasan "bilah yang bergerak menurut waktu akan
+   berbohong saat proses tersendat". Alasan itu tetap dipegang - yang berubah cara memenuhinya:
+
+     - DASAR (selesai/total) tetap dihitung dari langkah yang benar-benar selesai. Tidak ada
+       satu pun langkah yang ditandai selesai lebih awal.
+     - PERAYAPAN hanya bergerak DI DALAM jatah langkah yang sedang berjalan, dan mendekati
+       batas atasnya secara asimtotik - makin lama makin pelan, dan TIDAK PERNAH mencapainya.
+       Jadi angkanya tidak pernah mengklaim langkah itu selesai; ia hanya menunjukkan bahwa
+       prosesnya masih hidup. Kalau benar-benar tersendat, angkanya melambat sampai nyaris
+       diam di bawah batas - tersendatnya tetap terbaca, tanpa layar yang terlihat mati.
+
+   Perayapannya berhenti sendiri begitu semua langkah selesai atau ada yang gagal. */
+var _rayapMulai = 0, _rayapTimer = null, _rayapDasar = 0, _rayapBatas = 0;
+var RAYAP_TAU_MS_ = 22000;   // makin besar, makin pelan merambatnya
+var RAYAP_MAKS_ = 0.92;      // paling jauh hanya 92% dari jatah langkah - sisanya milik "selesai"
+
+function _pasangKemajuan_(nilai) {
+  const kartu = document.querySelector('.card');
+  if (kartu) {
+    kartu.style.setProperty('--progress', String(nilai));
+    if (nilai >= 1) kartu.classList.add('selesai'); else kartu.classList.remove('selesai');
+  }
+  const label = document.getElementById('progres-persen');
+  if (label) label.textContent = Math.round(nilai * 100) + '%';
+}
+function _hentikanRayap_() {
+  if (_rayapTimer) { clearInterval(_rayapTimer); _rayapTimer = null; }
+}
+function _detakRayap_() {
+  const lewat = Date.now() - _rayapMulai;
+  const jarak = _rayapBatas - _rayapDasar;
+  if (jarak <= 0) { _hentikanRayap_(); return; }
+  // 1 - e^(-t/tau): cepat di awal, makin pelan mendekati batas, tidak pernah menyentuhnya.
+  const maju = jarak * RAYAP_MAKS_ * (1 - Math.exp(-lewat / RAYAP_TAU_MS_));
+  _pasangKemajuan_(_rayapDasar + maju);
+}
+/* Kilau berputar (lihat .card.berjalan di index.html) dinyalakan/dimatikan DI SINI, bukan di
+   tiap cabang alur instalasi. perbaruiKemajuan_() adalah satu-satunya tempat yang selalu tahu
+   keadaan SELURUH langkah, jadi menempatkannya di sini membuat kilau itu mustahil tertinggal
+   menyala setelah proses berhenti - kasus yang paling merugikan, karena layar akan terlihat
+   masih bekerja padahal sudah gagal. */
+function _setKartuBerjalan_(nyala) {
+  const kartu = document.querySelector('#install-screen .card') || document.querySelector('.card');
+  if (kartu) kartu.classList.toggle('berjalan', !!nyala);
+}
 function perbaruiKemajuan_() {
   const semua = document.querySelectorAll('.steps .step');
   if (!semua.length) return;
-  let selesai = 0;
-  semua.forEach(function (el) { if (el.dataset.state === 'done') selesai++; });
-  const rasio = selesai / semua.length;
-  const kartu = document.querySelector('.card');
-  if (kartu) {
-    kartu.style.setProperty('--progress', String(rasio));
-    if (rasio >= 1) kartu.classList.add('selesai'); else kartu.classList.remove('selesai');
+  let selesai = 0, adaAktif = false, adaGagal = false;
+  semua.forEach(function (el) {
+    if (el.dataset.state === 'done') selesai++;
+    else if (el.dataset.state === 'active') adaAktif = true;
+    else if (el.dataset.state === 'error') adaGagal = true;
+  });
+  const dasar = selesai / semua.length;
+
+  // Langkah gagal: cincin & angka DIBEKUKAN di nilai sebenarnya. Di sinilah berhenti memang
+  // informasi yang benar - menyembunyikan kegagalan di balik angka yang terus naik justru
+  // membuat pembeli menunggu sesuatu yang tidak akan pernah datang.
+  if (adaGagal || !adaAktif) { _hentikanRayap_(); _setKartuBerjalan_(false); _pasangKemajuan_(dasar); return; }
+
+  _setKartuBerjalan_(true);
+  const batas = Math.min(1, (selesai + 1) / semua.length);
+  // Timer hanya dimulai ulang kalau jatahnya memang berpindah ke langkah lain - kalau tidak,
+  // setiap pembaruan pesan akan mengulang perayapan dari nol dan angkanya terlihat mundur.
+  if (_rayapDasar !== dasar || _rayapBatas !== batas || !_rayapTimer) {
+    _rayapDasar = dasar; _rayapBatas = batas;
+    _rayapMulai = Date.now();
+    _hentikanRayap_();
+    _rayapTimer = setInterval(_detakRayap_, 700);
   }
-  const label = document.getElementById('progres-persen');
-  if (label) label.textContent = Math.round(rasio * 100) + '%';
+  _detakRayap_();
 }
 
 function setStep(stepEl, state, message) {

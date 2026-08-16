@@ -121,7 +121,7 @@ const INSTALLER_CONFIG = {
   // alamat.js): logo 1024 px sebagai PNG bertransparansi biasanya 100-300 KB, tapi logo
   // berdetail tinggi bisa lebih. Batas 1,5 MB memberi ruang untuk itu tanpa membiarkan
   // berkas raksasa masuk. Harus SAMA dengan BATAS_LOGO di Worker.
-  MAKS_LOGO_KB: 1536,
+  MAKS_LOGO_KB: 3072,
   MAKS_BG_KB: 3072,
   
   // Timing

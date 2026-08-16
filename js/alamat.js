@@ -243,7 +243,22 @@ function kecilkanGambar(file, jenis) {
         // "contain" + latar transparan: logo tidak boleh terpotong.
         const w = img.width * skala, h = img.height * skala;
         ctx.drawImage(img, (sisiKanvas - w) / 2, (sisiKanvas - h) / 2, w, h);
-        kanvas.toBlob(b => b ? resolve(b) : reject(new Error('Gagal memproses gambar.')), 'image/png');
+          /* PERBAIKAN (dilaporkan: "sudah saya kompres menjadi 400 kb tapi keterangan yang
+           muncul 1700 kb"). AKAR MASALAH: yang diukur BUKAN berkas pilihan pembeli, melainkan
+           hasil encode ULANG di kanvas ini. PNG tidak punya kompresi lossy - logo bergradasi
+           atau berfoto membengkak berkali lipat begitu digambar ulang pada kanvas 1024x1024,
+           sehingga berkas 400 KB yang sudah dioptimalkan keluar jadi sekitar 1700 KB.
+
+           WebP dicoba LEBIH DULU: ia mendukung transparansi seperti PNG (syarat mutlak untuk
+           logo) tetapi punya kompresi lossy, jadi hasilnya jauh lebih kecil pada mutu setara.
+           Kalau peramban tidak mendukungnya, toBlob mengembalikan tipe LAIN (biasanya
+           image/png) dan PNG itu dipakai apa adanya - tidak ada jalur yang gagal. */
+        kanvas.toBlob(function (bWebp) {
+          if (bWebp && bWebp.type === 'image/webp') { resolve(bWebp); return; }
+          kanvas.toBlob(function (bPng) {
+            bPng ? resolve(bPng) : reject(new Error('Gagal memproses gambar.'));
+          }, 'image/png');
+        }, 'image/webp', 0.92);
       } else {
         const maksLebar = 1920;
         const skala = Math.min(1, maksLebar / img.width);
@@ -314,10 +329,16 @@ async function unggahGambar(file, jenis) {
   try { blob = await kecilkanGambar(file, jenis); }
   catch (e) { pesan(idPesan, e.message, 'salah'); return; }
 
+  /* PERMINTAAN ("jika memang masih bisa lebih dari 1500 kb, cukup beri saran saja untuk
+     menggunakan gambar berukuran maksimal 1500 kb - jika user tetap mengupload gambar lebih dari
+     itu maka itu adalah pilihan user terkait boros kuota"): ambang ini TIDAK LAGI membatalkan
+     unggahan. Ia hanya memberi tahu, lalu prosesnya diteruskan.
+
+     Pagar kerasnya kini ada di worker (BATAS_LOGO/BATAS_BG, 3 MB) - jauh di atas anjuran ini,
+     jadi gambar yang lolos di sini praktis tidak akan ditolak server. */
   if (blob.size > batasKB * 1024) {
-    pesan(idPesan, 'Gambar masih terlalu besar setelah dikecilkan (' +
-      Math.round(blob.size / 1024) + ' KB, maksimal ' + batasKB + ' KB). Coba gambar lain.', 'salah');
-    return;
+    pesan(idPesan, 'Ukuran hasil ' + Math.round(blob.size / 1024) + ' KB, di atas anjuran ' +
+      batasKB + ' KB - tetap diunggah, hanya lebih boros kuota.', 'ok');
   }
 
   pesan(idPesan, 'Mengunggah…', 'ok');

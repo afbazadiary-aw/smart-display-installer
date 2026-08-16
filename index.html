@@ -228,6 +228,49 @@
   .card::before,.card::after{transition:none}
   .card.selesai::after{animation:none}
 }
+/* PERMINTAAN ("efek cahaya mengelilingi pop ini sampai penuh, maksudnya TERUS BERJALAN, bukan
+   berhenti sambil menunggu penyalinan kode aplikasi ke akun pembeli").
+
+   Cincin kemajuan di atas menunjukkan SEBERAPA JAUH prosesnya. Lapisan ini menjawab pertanyaan
+   yang berbeda dan sama pentingnya: APAKAH prosesnya masih hidup. Penyalinan kode memakan waktu
+   lama, dan cincin yang diam selama itu terbaca sebagai aplikasi yang menggantung.
+
+   Karena itu keduanya dipisah, bukan digabung: satu berkas kilau yang berputar tanpa henti
+   mengelilingi tepi kartu, di atas cincin kemajuan. Kilau ini TIDAK membawa informasi kemajuan
+   sama sekali - ia hanya tanda kehidupan, jadi ia tidak bisa berbohong tentang seberapa jauh
+   prosesnya.
+
+   Berjalan HANYA selama kartu bertanda .berjalan (dipasang saat instalasi dimulai, dilepas saat
+   selesai atau gagal) - kalau prosesnya berhenti karena galat, kilaunya ikut berhenti, sehingga
+   layar tidak pernah menyiratkan sesuatu masih berjalan padahal tidak. */
+.card::before{ }   /* (dibiarkan - lihat aturan cincin di atas) */
+.card .kilau-berjalan{
+  content:'';position:absolute;inset:-2px;border-radius:calc(var(--radius) + 2px);padding:2px;
+  background:conic-gradient(from 0deg,
+    transparent 0deg,
+    transparent 300deg,
+    rgba(110,231,255,.95) 345deg,
+    rgba(255,255,255,.9) 356deg,
+    transparent 360deg);
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;
+  mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite:exclude;
+  pointer-events:none;opacity:0;transition:opacity .4s ease;z-index:1;
+}
+.card.berjalan .kilau-berjalan{opacity:1;animation:kilauKeliling 2.6s linear infinite}
+@keyframes kilauKeliling{ to{ transform:rotate(360deg) } }
+/* Nyala lembut di belakang kartu yang ikut bernapas selama proses berjalan - memperkuat kesan
+   "masih bekerja" pada layar besar, tanpa menambah elemen baru. */
+.card.berjalan::after{animation:napasCahaya 2.6s ease-in-out infinite}
+@keyframes napasCahaya{
+  0%,100%{opacity:calc(var(--progress) * .85 + .12)}
+  50%{opacity:calc(var(--progress) * .85 + .34)}
+}
+@media (prefers-reduced-motion:reduce){
+  .card.berjalan .kilau-berjalan{animation:none;opacity:.5}
+  .card.berjalan::after{animation:none}
+}
 /* Angka persen di samping judul - "perkiraan" yang diminta, dalam bentuk yang bisa dibaca
    sekilas tanpa menghitung langkah satu per satu. */
 .progres-persen{display:inline-block;margin-left:8px;font-size:.62em;font-weight:600;
@@ -278,6 +321,7 @@
 
       <!-- ============ LAYAR 2: PROSES INSTALASI ============ -->
       <section id="install-screen" class="screen">
+        <span class="kilau-berjalan" aria-hidden="true"></span>
         <h2>Installing Smart Display...<span id="progres-persen" class="progres-persen">0%</span><span class="sub-id">Memasang Smart Display...</span></h2>
         <p class="subtitle">Please keep this page open until it finishes (about 1-2 minutes).<span class="sub-id">Mohon jangan tutup halaman ini sampai selesai (sekitar 1-2 menit).</span></p>
 
